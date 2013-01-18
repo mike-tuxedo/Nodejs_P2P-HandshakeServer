@@ -1,3 +1,5 @@
+require('./broadcast');
+
 var WebSocketServer = require('ws').Server;
 var wss = new WebSocketServer({port: '9001'});
 var clients = [];
