@@ -1,9 +1,10 @@
 var WebSocketServer = require('ws').Server;
 var wss = new WebSocketServer({port: '9001'});
-
+var clients = [];
 
 wss.on('connection', function(ws) {
     
+    clients.push(ws);
     console.log('client connected');
     
     ws.on('message', function(message) {
