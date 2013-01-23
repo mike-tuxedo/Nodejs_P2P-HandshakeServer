@@ -1,36 +1,38 @@
-// webrtc-handling
+// array methods
 require('./array_prototype');
 
 // database
 var hash = require('./hash');
 
-// websocket-server
+// websocket-server and clients
 var WebSocketServer = require('ws').Server;
 var wss = new WebSocketServer({port: '9005'});
 var clients = [];
-var phovecUrl = 'http://localhost:8001';
+var phovecUrl = 'http://localhost:8001'; 
+
+
+
 
 wss.on('connection', function(ws) {
     
     console.log('client connected');
     
     if(isValidConnection(ws)){
-      ws.newUser = true;
       clients.push(ws);
     }
     
     ws.on('message', function(message) {
       
       message = JSON.parse(message);
+      
       if(message.init){
-        setupNewUser(message.url);
+        var newUser = clients[clients.length-1];
+        setupNewUser(newUser,message.url);
       }
       
     });
     
-    ws.on('close', function() {
-      
-    });
+    ws.on('close', function() {});
   
 });
 
@@ -42,8 +44,14 @@ var isValidConnection = function(req){ // client must have got a certain domain 
     return false;
 };
 
-var setupNewUser = function(clientUrl){
-  var newUser = clients[clients.length-1];
-  hash.handleUser(newUser, clientUrl);
-  newUser.newUser = false;
+
+var setupNewUser = function(socket,clientUrl){
+ 
+  hash.handleUser(
+    clientUrl, 
+    function(clientInfo){
+      socket.send(JSON.stringify({ init: true, chatroom: clientInfo.roomHash, userID: clientInfo.userHash, numberOfGuests: clientInfo.numberOfGuests }));
+    }
+  );
+  
 };

@@ -8,25 +8,29 @@ var publicDump = null;
 
 // public methods
 
-exports.handleUser = function(socket,clientURL){
+exports.handleUser = function(clientURL,callback){
 
   mongodb.getDatabaseDump(function(dump){
   
     publicDump = dump;
-  
+    var infoForClient = {}; // this object gets ent back to the client and contains { chatroomhash: '...', userID: '...', numberOfGuests: Number }
+    
     if( getHashFromClientURL(clientURL) == '#' ){ // is host
-      socket.roomHash = getUniqueRoomHash();
-      socket.userHash = getUniqueUserHash(socket.roomHash);
-      mongodb.insertRoom(socket.roomHash);
-      mongodb.insertUser(socket.roomHash, socket.userHash);
+      infoForClient.roomHash = getUniqueRoomHash();
+      infoForClient.userHash = getUniqueUserHash(infoForClient.roomHash);
+      infoForClient.numberOfGuests = 0;
+      mongodb.insertRoom(infoForClient.roomHash);
+      mongodb.insertUser(infoForClient.roomHash, infoForClient.userHash);
     }
     else{ // is guest
       var guestHash = getHashFromClientURL(clientURL);
-      socket.roomHash = guestHash;
-      socket.userHash = getUniqueUserHash(socket.roomHash);
-      mongodb.insertUser(guestHash, socket.userHash);
+      infoForClient.roomHash = guestHash;
+      infoForClient.userHash = getUniqueUserHash(infoForClient.roomHash);
+      infoForClient.numberOfGuests = publicDump.getObject({ hash: guestHash}).users.length;
+      mongodb.insertUser(guestHash, infoForClient.userHash);
     }
     
+    callback(infoForClient);
     
   });
   
@@ -63,7 +67,6 @@ var createHash = function(){
   var random = Math.random().toString();
   return crypto.createHash('sha1').update(current_date + random).digest('hex');
 };
-
 
 
 var isRoomHashInUse = function(roomHash){
