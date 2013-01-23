@@ -14,18 +14,17 @@ wss.on('connection', function(ws) {
     
     console.log('client connected');
     
-    //TODO: Only create room, when the user is the first one
-    console.log(ws.upgradeReq.headers);
-    if(ws.upgradeReq.headers.origin == phovecUrl ws.upgradeReq.headers['sec-websocket-key'])
-      
-    //hash.handleUser(ws);
-    ws.key = ws.upgradeReq.headers['sec-websocket-key'];
-    clients.push(ws);
+    if(isValidConnection(ws)){
+      ws.newUser = true;
+      clients.push(ws);
+    }
     
     ws.on('message', function(message) {
       
       message = JSON.parse(message);
-      console.log(message.client);
+      if(message.init){
+        setupNewUser(message.url);
+      }
       
     });
     
@@ -36,10 +35,15 @@ wss.on('connection', function(ws) {
 });
 
 
-var isValidConnection = function(req){
+var isValidConnection = function(req){ // client must have got a certain domain in order to proceed
   if(req.upgradeReq.headers.origin == phovecUrl)
+    return true;
+  else
     return false;
-    
-  for(var c = 0; c < clients.length; c++)
-    if(clients[c].key ==
+};
+
+var setupNewUser = function(clientUrl){
+  var newUser = clients[clients.length-1];
+  hash.handleUser(newUser, clientUrl);
+  newUser.newUser = false;
 };

@@ -8,16 +8,25 @@ var publicDump = null;
 
 // public methods
 
-exports.handleUser = function(socket){
+exports.handleUser = function(socket,clientURL){
 
   mongodb.getDatabaseDump(function(dump){
   
     publicDump = dump;
-    socket.roomHash = getUniqueRoomHash();
-    socket.userHash = getUniqueUserHash(socket.roomHash);
+  
+    if( getHashFromClientURL(clientURL) == '#' ){ // is host
+      socket.roomHash = getUniqueRoomHash();
+      socket.userHash = getUniqueUserHash(socket.roomHash);
+      mongodb.insertRoom(socket.roomHash);
+      mongodb.insertUser(socket.roomHash, socket.userHash);
+    }
+    else{ // is guest
+      var guestHash = getHashFromClientURL(clientURL);
+      socket.roomHash = guestHash;
+      socket.userHash = getUniqueUserHash(socket.roomHash);
+      mongodb.insertUser(guestHash, socket.userHash);
+    }
     
-    mongodb.insertRoom(socket.roomHash);
-    mongodb.insertUser(socket.roomHash, socket.userHash);
     
   });
   
@@ -40,7 +49,7 @@ var getUniqueRoomHash = function(){
 
 var getUniqueUserHash = function(roomHash){
   var hash = null;
-   
+  
   do{
     hash = createHash();
   }while(isUserHashInUse(roomHash, hash));
@@ -65,9 +74,14 @@ var isRoomHashInUse = function(roomHash){
 var isUserHashInUse = function(roomHash, userHash){
   var room = publicDump.getObject({ hash: roomHash});
   
-  if(room && room.users)
-    return (room.users.getObject({ id: userHash }) != -1);
+  if(room && room.users){
+    return room.users.getObject({ id: userHash });
+  }
   else
     false;
 };
 
+
+var getHashFromClientURL = function(url){
+  return url.slice( (url.lastIndexOf('/') + 1), url.length); // returns # if host otherwise 5as6da9s1dsd9ds1d3a4d9sfe6eas4 if client
+};
