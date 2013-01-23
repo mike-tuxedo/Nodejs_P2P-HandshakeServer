@@ -8,7 +8,7 @@ var publicDump = null;
 
 // public methods
 
-exports.handleUser = function(clientURL,callback){
+exports.handleClient = function(clientURL,callback){
 
   mongodb.getDatabaseDump(function(dump){
   
@@ -16,21 +16,27 @@ exports.handleUser = function(clientURL,callback){
     var infoForClient = {}; // this object gets ent back to the client and contains { chatroomhash: '...', userID: '...', numberOfGuests: Number }
     
     if( getHashFromClientURL(clientURL) == '#' ){ // is host
+      
       infoForClient.roomHash = getUniqueRoomHash();
       infoForClient.userHash = getUniqueUserHash(infoForClient.roomHash);
       infoForClient.numberOfGuests = 0;
+      
       mongodb.insertRoom(infoForClient.roomHash);
       mongodb.insertUser(infoForClient.roomHash, infoForClient.userHash);
+      
+      callback(infoForClient);
     }
-    else{ // is guest
+    else if( getHashFromClientURL(clientURL).length == 40 ){ // is guest with hash
+    
       var guestHash = getHashFromClientURL(clientURL);
       infoForClient.roomHash = guestHash;
       infoForClient.userHash = getUniqueUserHash(infoForClient.roomHash);
       infoForClient.numberOfGuests = publicDump.getObject({ hash: guestHash}).users.length;
+      
       mongodb.insertUser(guestHash, infoForClient.userHash);
+      
+      callback(infoForClient);
     }
-    
-    callback(infoForClient);
     
   });
   

@@ -47,7 +47,7 @@ var isValidConnection = function(req){ // client must have got a certain domain 
 
 var setupNewUser = function(socket,clientUrl){
  
-  hash.handleUser(
+  hash.handleClient(
     clientUrl, 
     function(clientInfo){
       socket.send(JSON.stringify({ init: true, chatroom: clientInfo.roomHash, userID: clientInfo.userHash, numberOfGuests: clientInfo.numberOfGuests }));
