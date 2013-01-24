@@ -5,10 +5,8 @@ var crypto = require('crypto');
 var properties = require('./properties');
 var publicDump = null;
 
-
 // public methods
-
-exports.handleClient = function(clientURL,callback){
+exports.handleClient = function(clientURL, callback){
 
   mongodb.getDatabaseDump(function(dump){
   
@@ -28,24 +26,24 @@ exports.handleClient = function(clientURL,callback){
     }
     else if( getHashFromClientURL(clientURL).length == 40 ){ // is guest with hash
     
-      var guestHash = getHashFromClientURL(clientURL);
-      infoForClient.roomHash = guestHash;
+      infoForClient.roomHash = getHashFromClientURL(clientURL);
       infoForClient.userHash = getUniqueUserHash(infoForClient.roomHash);
-      infoForClient.numberOfGuests = publicDump.getObject({ hash: guestHash}).users.length;
+      infoForClient.numberOfGuests = publicDump.getObject({ hash: infoForClient.roomHash}).users.length;
       
-      mongodb.insertUser(guestHash, infoForClient.userHash);
-      
-      callback(infoForClient);
+      if(infoForClient.numberOfGuests >= 6){
+         callback({error: "full"});
+      }
+      else{
+        mongodb.insertUser(infoForClient.roomHash, infoForClient.userHash);
+        callback(infoForClient);
+      }
     }
     
   });
   
 };
 
-
-
 // private methods 
-
 var getUniqueRoomHash = function(){
   var hash = null;
   
@@ -55,7 +53,6 @@ var getUniqueRoomHash = function(){
   
   return hash;
 };
-
 
 var getUniqueUserHash = function(roomHash){
   var hash = null;
@@ -67,18 +64,15 @@ var getUniqueUserHash = function(roomHash){
   return hash;
 };
 
-
 var createHash = function(){
   var current_date = (new Date()).valueOf().toString();
   var random = Math.random().toString();
   return crypto.createHash('sha1').update(current_date + random).digest('hex');
 };
 
-
 var isRoomHashInUse = function(roomHash){
   return publicDump.containsObject({ hash: roomHash },'hash');
 };
-
 
 var isUserHashInUse = function(roomHash, userHash){
   var room = publicDump.getObject({ hash: roomHash});
@@ -86,10 +80,10 @@ var isUserHashInUse = function(roomHash, userHash){
   if(room && room.users){
     return room.users.getObject({ id: userHash });
   }
-  else
+  else{
     false;
+  }
 };
-
 
 var getHashFromClientURL = function(url){
   return url.slice( (url.lastIndexOf('/') + 1), url.length); // returns # if host otherwise 5as6da9s1dsd9ds1d3a4d9sfe6eas4 if client
