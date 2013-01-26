@@ -1,65 +1,77 @@
 ﻿require('./array_prototype');
 var mongodb = require('./mongodb');
 
-var crypto = require('crypto');
+var hashCrypto = require('crypto');
 var properties = require('./properties');
-var publicDump = null;
+
 
 // public methods
 exports.handleClient = function(clientURL, callback){
 
-  mongodb.getDatabaseDump(function(dump){
+  try{
   
-    publicDump = dump;
-    var infoForClient = {}; // this object gets ent back to the client and contains { chatroomhash: '...', userID: '...', numberOfGuests: Number }
+    var infoForClient = {}; // this object gets ent back to the client and contains { chatroomhash: '...', userID's: [{ id: '...'},...] }
     
     if( getHashFromClientURL(clientURL) == '#' ){ // is host
       
-      infoForClient.roomHash = getUniqueRoomHash();
-      infoForClient.userHash = getUniqueUserHash(infoForClient.roomHash);
-      infoForClient.numberOfGuests = 0;
-      
-      mongodb.insertRoom(infoForClient.roomHash);
-      mongodb.insertUser(infoForClient.roomHash, infoForClient.userHash);
-      
-      callback(infoForClient);
-    }
-    else if( getHashFromClientURL(clientURL).length == 40 ){ // is guest with hash
-    
-      infoForClient.roomHash = getHashFromClientURL(clientURL);
-      infoForClient.userHash = getUniqueUserHash(infoForClient.roomHash);
-      infoForClient.numberOfGuests = publicDump.getObject({ hash: infoForClient.roomHash}).users.length;
-      
-      if(infoForClient.numberOfGuests >= 6){
-         callback({error: "full"});
-      }
-      else{
+      mongodb.searchForChatroomEntry({},function(dump){ 
+        
+        infoForClient.roomHash = getUniqueRoomHash(dump);
+        infoForClient.userHash = getUniqueUserHash(dump);
+        infoForClient.guestIds = [];
+        
+        mongodb.insertRoom(infoForClient.roomHash);
         mongodb.insertUser(infoForClient.roomHash, infoForClient.userHash);
+        
+        infoForClient.success = true;
         callback(infoForClient);
-      }
+      
+      });
+    }
+    else if( getHashFromClientURL(clientURL).length == 40 ){ // is guest with hash that has got 40 signs
+      
+      mongodb.searchForChatroomEntry({ hash: getHashFromClientURL(clientURL) },function(room){
+        
+        infoForClient.roomHash = room[0].hash;
+        infoForClient.userHash = getUniqueUserHash(room);
+        infoForClient.guestIds = room.getObject({ hash: infoForClient.roomHash}).users;
+        
+        if(infoForClient.guestIds.length >= 6){ // when room has already got 6 people then return error message
+          infoForClient.success = false;
+          infoForClient.error = "chatroom fully occupied";
+        }
+        else{
+          mongodb.insertUser(infoForClient.roomHash, infoForClient.userHash);
+          infoForClient.success = true;
+        }
+        
+        callback(infoForClient);
+      });
     }
     
-  });
-  
+  }
+  catch(e){
+    console.log('error happend:',e);
+  }
 };
 
 // private methods 
-var getUniqueRoomHash = function(){
+var getUniqueRoomHash = function(roomObject){
   var hash = null;
   
   do{
     hash = createHash();
-  }while(isRoomHashInUse(hash));
+  }while(isRoomHashInUse(roomObject,hash));
   
   return hash;
 };
 
-var getUniqueUserHash = function(roomHash){
+var getUniqueUserHash = function(roomObject){
   var hash = null;
   
   do{
     hash = createHash();
-  }while(isUserHashInUse(roomHash, hash));
+  }while(isUserHashInUse(roomObject, hash));
   
   return hash;
 };
@@ -67,15 +79,15 @@ var getUniqueUserHash = function(roomHash){
 var createHash = function(){
   var current_date = (new Date()).valueOf().toString();
   var random = Math.random().toString();
-  return crypto.createHash('sha1').update(current_date + random).digest('hex');
+  return hashCrypto.createHash('sha1').update(current_date + random).digest('hex');
 };
 
-var isRoomHashInUse = function(roomHash){
-  return publicDump.containsObject({ hash: roomHash },'hash');
+var isRoomHashInUse = function(roomObject,roomHash){
+  return roomObject.containsObject({ hash: roomHash },'hash');
 };
 
-var isUserHashInUse = function(roomHash, userHash){
-  var room = publicDump.getObject({ hash: roomHash});
+var isUserHashInUse = function(roomObject, roomHash, userHash){
+  var room = roomObject.getObject({ hash: roomHash});
   
   if(room && room.users){
     return room.users.getObject({ id: userHash });

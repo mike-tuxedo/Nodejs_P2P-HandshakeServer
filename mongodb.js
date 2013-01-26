@@ -3,32 +3,42 @@
 var mongodb = require('mongodb').MongoClient;
 var properties = require('./properties');
 
-//TODO: Create function for selections at mongo db, don't use always the hole dump to get unique hashes
-exports.getDatabaseDump = function(callback) {
 
-  var dump = [];
-
-  mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
-    if (err) {
-      return console.log(err);
+exports.searchForChatroomEntry = function(condition,callback) {
+  
+  try{
+  
+    if (typeof condition != 'object' || !callback) {
+      return false;
     }
-
-    db.collection('rooms', function(err, collection) {
+  
+    mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
       if (err) {
         return console.log(err);
       }
 
-      collection.find().toArray(function(err, items) {
+      db.collection('rooms', function(err, collection) {
         if (err) {
           return console.log(err);
         }
-        dump = items;
-        callback(dump);
+
+        collection.find(condition).toArray(function(err, items) {
+          if (err) {
+            return console.log(err);
+          }
+          
+          callback(items);
+        });
+
       });
-
+      
     });
-  });
-
+    
+  }
+  catch(e){
+    console.log('error happend:',e);
+  }
+  
   return null;
 };
 
@@ -67,30 +77,30 @@ exports.insertUser = function(roomHash, userId) {
     if (err) {
       return console.log(err);
     }
+    
+    
+    exports.searchForChatroomEntry(
+      { hash: roomHash},
+      function(room){
+        
+        var _users = room[0].users;
+        
+        _users.push(
+          { id: userId }
+        );
 
-    exports.getDatabaseDump(function(dump) {
-
-      var _room = dump.getObject({
-        hash: roomHash
-      });
-      var _users = _room.users;
-      _users.push({
-        id: userId
-      });
-
-      db.collection('rooms').update({
-        hash: roomHash
-      }, {
-        hash: roomHash,
-        users: _users
-      }, {
-        w: 1
-      }, function(err, result) {
-        if (err) {
-          return console.log(err);
-        }
-      });
-    });
-
+        db.collection('rooms').update(
+          { hash: roomHash  }, 
+          { hash: roomHash, users: _users }, 
+          { w: 1 }, 
+          function(err, result) {
+            if (err) {
+              return console.log(err);
+            }
+          }
+        );
+      }
+    );
+    
   });
 }

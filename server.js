@@ -1,23 +1,16 @@
-// array methods
-require('./array_prototype');
-
-// database
-var hash = require('./hash');
+var serverMethods = require('./server_methods');
 
 // websocket-server and clients
 var WebSocketServer = require('ws').Server;
 var wss = new WebSocketServer({port: '9005'});
 var clients = [];
 
-//TODO: Get hash server side when user connect to websocketserver!
-var phovecUrl = 'http://localhost'; 
-
 wss.on('connection', function(ws) {
     
     console.log('client connected');
     
-    if(isValidOrigin(ws)){
-       clients.push(ws);
+    if( serverMethods.isValidOrigin(ws) ){
+      clients.push(ws);
     }
     else{
       return;
@@ -26,9 +19,9 @@ wss.on('connection', function(ws) {
     ws.on('message', function(message) {
       message = JSON.parse(message);
       
-      if(message.init){
+      if( serverMethods.isRegisterMessage(message) ){
         var newUser = clients[clients.length-1];
-        setupNewUser(newUser, message.url);
+        serverMethods.setupNewUser(newUser, message.url);
       }
       
     });
@@ -36,21 +29,4 @@ wss.on('connection', function(ws) {
     ws.on('close', function(){});
 });
 
-var isValidOrigin = function(req){ // client must have got a certain domain in order to proceed
-  if(req.upgradeReq.headers.origin == phovecUrl)
-    return true;
-  else
-    return false;
-};
 
-
-var setupNewUser = function(socket,clientUrl){
- 
-  hash.handleClient(
-    clientUrl, 
-    function(clientInfo){
-      socket.send(JSON.stringify({ init: true, chatroom: clientInfo.roomHash, userID: clientInfo.userHash, numberOfGuests: clientInfo.numberOfGuests }));
-    }
-  );
-  
-};

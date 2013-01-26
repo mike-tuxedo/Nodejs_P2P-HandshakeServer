@@ -8,7 +8,7 @@
 // search for { hash: '...' users:[...]} and returns true if array contains objectect
 // first param can look like { hash: '123' }
 // second param can look like 'hash'
-Array.prototype.containsobjectect = function(object,property){
+Array.prototype.containsObject = function(object,property){
   for(var prop in this){
     for(var innerProp in this[prop])
         if(this[prop][innerProp] == object[property])
@@ -20,7 +20,7 @@ Array.prototype.containsobjectect = function(object,property){
 
 // search for { hash: '...' users:[...]} and returns it
 // param can look like { hash: '123' }
-Array.prototype.getobjectect = function(object){
+Array.prototype.getObject = function(object){
   for(var prop in this){
     for(var innerProp in this[prop])
         if(this[prop][innerProp] == object[innerProp])
