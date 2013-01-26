@@ -17,6 +17,15 @@ wss.on('connection', function(ws) {
     }
     
     ws.on('message', function(message) {
+    
+      /* message-kinds (from client to server): */
+      //// register (new User or Guest) -> { init: true, url: 'www.example.at/#...' }
+      //// spd/ice -> { chatroomHash: '...', userHash: '...', destinationHash: '...', spd or ice: Object }
+      
+      /* message-kinds (from server to client): */
+      //// register (new User or Guest) -> { init: true, chatroom: '...', userID: '...', guestIds: [{id '...'},...] }
+      //// spd/ice -> { chatroomHash: '...', userHash: '...', spd or ice: Object }
+      
       message = JSON.parse(message);
       
       if( serverMethods.isRegisterMessage(message) ){
