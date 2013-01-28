@@ -1,12 +1,14 @@
 ﻿var serverMethods = require('./server_methods');
 var nodemailer = require("nodemailer");
+var properties = require('./properties');
+
 
 // smtp-server that takes care for the transport
 var smtpTransport = nodemailer.createTransport("SMTP",{
     service: "Gmail",
     auth: {
-        user: "",
-        pass: ""
+        user: properties.smtpUsername,
+        pass: properties.smtpPassword
     }
 });
 
