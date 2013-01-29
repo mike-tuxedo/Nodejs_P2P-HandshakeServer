@@ -74,7 +74,7 @@ exports.insertRoom = function(roomHash) {
   catch(e){
     console.log('error happend:',e);
   }
-}
+};
 
 exports.insertUser = function(roomHash, userId) {
 
@@ -119,4 +119,10 @@ exports.insertUser = function(roomHash, userId) {
   catch(e){
     console.log('error happend:',e);
   }
-}
+};
+
+exports.getOtherUsersOfChatroom = function(roomHash, callback){
+  exports.searchForChatroomEntry({ hash: roomHash },function(room){
+    callback(room[0].users);
+  });
+};

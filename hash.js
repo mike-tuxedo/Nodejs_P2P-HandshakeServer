@@ -12,7 +12,7 @@ exports.handleClient = function(clientURL, callback){
   
     var infoForClient = {}; // this object gets ent back to the client and contains { chatroomhash: '...', userID's: [{ id: '...'},...] }
     
-    if( getHashFromClientURL(clientURL) == '#' ){ // is host
+    if( clientURL[clientURL.length-1] == '#' ){ // is host
       
       mongodb.searchForChatroomEntry({},function(dump){ 
         
@@ -28,9 +28,9 @@ exports.handleClient = function(clientURL, callback){
       
       });
     }
-    else if( getHashFromClientURL(clientURL).length == 40 ){ // is guest with hash that has got 40 signs
+    else if( getHashFromClientURL(clientURL, '#').length == 40 ){ // is guest with hash that has got 40 signs
       
-      mongodb.searchForChatroomEntry({ hash: getHashFromClientURL(clientURL) },function(room){
+      mongodb.searchForChatroomEntry({ hash: getHashFromClientURL(clientURL, '#') },function(room){
         
         infoForClient.roomHash = room[0].hash;
         infoForClient.userHash = getUniqueUserHash(room);
@@ -97,6 +97,6 @@ var isUserHashInUse = function(roomObject, roomHash, userHash){
   }
 };
 
-var getHashFromClientURL = function(url){
-  return url.slice( (url.lastIndexOf('/') + 1), url.length); // returns # if host otherwise 5as6da9s1dsd9ds1d3a4d9sfe6eas4 if client
+var getHashFromClientURL = function(url, signToStartAt){
+  return url.slice( (url.lastIndexOf(signToStartAt) + 1), url.length); // returns # if host otherwise 5as6da9s1dsd9ds1d3a4d9sfe6eas4 if client
 };
