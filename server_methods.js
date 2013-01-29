@@ -15,18 +15,6 @@ exports.isValidOrigin = function(req){ // client must have got a certain domain 
     return false;
 };
 
-exports.isRegisterMessage = function(msg){
-  return msg.init;
-};
-
-exports.isSessionDescription = function(msg){
-  return msg.sdp || msg.ice;
-};
-
-exports.isMailInvitation = function(msg){
-  return msg.mail;
-};
-
 exports.setupNewUser = function(socket,clientUrl){ // user gets handled by whether they are hosts or guests 
  
   hash.handleClient(
@@ -52,8 +40,8 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
   
 };
 
-exports.trace = function(msg){
+exports.trace = function(msg,obj){
   console.log("At " + new Date().toString() );
-  console.log(msg);
+  console.log(msg,obj);
   console.log("---------------------------------------------------------------");
 };

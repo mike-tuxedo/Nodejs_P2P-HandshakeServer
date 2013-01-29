@@ -43,64 +43,80 @@ exports.searchForChatroomEntry = function(condition,callback) {
 };
 
 exports.insertRoom = function(roomHash) {
-  if (!roomHash) {
-    return false;
-  }
 
-  mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
-    if (err) {
-      return console.log(err);
+  try{
+  
+    if (!roomHash) {
+      return false;
     }
 
-    var rooms = db.collection('rooms');
-    var room = {
-      hash: roomHash,
-      users: []
-    };
-
-    rooms.insert(room, {
-      w: 1
-    }, function(err, result) {
+    mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
       if (err) {
         return console.log(err);
       }
+
+      var rooms = db.collection('rooms');
+      var room = {
+        hash: roomHash,
+        users: []
+      };
+
+      rooms.insert(room, {
+        w: 1
+      }, function(err, result) {
+        if (err) {
+          return console.log(err);
+        }
+      });
     });
-  });
+    
+  }
+  catch(e){
+    console.log('error happend:',e);
+  }
 }
 
 exports.insertUser = function(roomHash, userId) {
-  if (!roomHash || !userId) {
-    return false;
-  }
 
-  mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
-    if (err) {
-      return console.log(err);
+  try{
+  
+    if (!roomHash || !userId) {
+      return false;
     }
-    
-    
-    exports.searchForChatroomEntry(
-      { hash: roomHash},
-      function(room){
-        
-        var _users = room[0].users;
-        
-        _users.push(
-          { id: userId }
-        );
 
-        db.collection('rooms').update(
-          { hash: roomHash  }, 
-          { hash: roomHash, users: _users }, 
-          { w: 1 }, 
-          function(err, result) {
-            if (err) {
-              return console.log(err);
-            }
-          }
-        );
+    mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
+      if (err) {
+        return console.log(err);
       }
-    );
+      
+      
+      exports.searchForChatroomEntry(
+        { hash: roomHash},
+        function(room){
+          
+          var _users = room[0].users;
+          
+          _users.push(
+            { id: userId }
+          );
+
+          db.collection('rooms').update(
+            { hash: roomHash  }, 
+            { hash: roomHash, users: _users }, 
+            { w: 1 }, 
+            function(err, result) {
+              if (err) {
+                return console.log(err);
+              }
+            }
+          );
+        }
+      );
+      
+    });
     
-  });
+  }
+  catch(e){
+    console.log('error happend:',e);
+  }
 }
