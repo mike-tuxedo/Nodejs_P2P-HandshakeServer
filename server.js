@@ -12,6 +12,9 @@ var invitationMailer = require('./mailer');
 var WebSocketServer = require('ws').Server;
 var wss = new WebSocketServer({ port: properties.serverPort });
 
+// loggin all server activities
+var productionLogger = require('./logger').production;
+
 // to hold all user-connections
 var sockets = [];
 
@@ -21,11 +24,11 @@ wss.on('connection', function(ws) {
     
     
     if( serverMethods.isValidOrigin(ws) ){
-      serverMethods.trace('client connected','');
+      productionLogger.log('info', 'client connected successfully at' + new Date().toString() );
       sockets.push(ws);
     }
     else{
-      serverMethods.trace('client not accepted: ',ws.upgradeReq.headers.origin);
+      productionLogger.error('client not accepted: ',ws.upgradeReq.headers.origin);
       return;
     }
     
@@ -51,12 +54,13 @@ wss.on('connection', function(ws) {
       
       try{
         message = JSON.parse(message);
-        serverMethods.trace('message got', message);
+        productionLogger.log('info','message got', message);
       }
       catch(e){
-        serverMethods.trace('message is non-JSON:',e);
+        productionLogger.error('message is non-JSON: ', e);
         return;
       }
+      
       
       switch(message.subject){
         case 'init': 
@@ -71,9 +75,10 @@ wss.on('connection', function(ws) {
             { hash: message.chatroomHash },
             function(rooms){ // check whether chatroomHash and User-ID's exist 
               var room = rooms[0];
+              var socket = serverMethods.clients[message.destinationHash];
               
-              if( room && room.hash == message.chatroomHash && room.users.getObject({ id: message.userHash }) && room.users.getObject({ id: message.destinationHash }) ){
-                serverMethods.clients[message.destinationHash].send(JSON.stringify({
+              if( serverMethods.isSocketConnectionAvailable( socket ) && room.users.getObject({ id: message.userHash }) && room.users.getObject({ id: message.destinationHash }) ){
+                socket.send(JSON.stringify({
                   subject: 'sdp',
                   chatroomHash: message.chatroomHash, 
                   userHash: message.userHash, 
@@ -92,10 +97,11 @@ wss.on('connection', function(ws) {
             { hash: message.chatroomHash },
             function(rooms){ // check whether chatroomHash and User-ID's exist 
               var room = rooms[0];
+              var socket = serverMethods.clients[message.destinationHash];
               
-              if( room.users.getObject({ id: message.userHash }) && room.users.getObject({ id: message.destinationHash }) ){
-                console.log('ice', room);
-                serverMethods.clients[message.destinationHash].send(JSON.stringify({ 
+              if( serverMethods.isSocketConnectionAvailable( socket ) && room.users.getObject({ id: message.userHash }) && room.users.getObject({ id: message.destinationHash }) ){
+                
+                socket.send(JSON.stringify({ 
                   subject: 'ice',
                   chatroomHash: message.chatroomHash, 
                   userHash: message.userHash, 
@@ -132,11 +138,24 @@ wss.on('connection', function(ws) {
           break;  
           
         default:
-          serverMethods.trace('message doesn\'t have an allowed subject property:','');
+          productionLogger.log('warn', 'message doesn\'t have an allowed subject property:', message);
           return;
       };
 
     });
     
-    ws.on('close', function(){});
+    ws.on('close', function(ws){ // is called when client disconnected or left
+      
+      productionLogger.log('info', 'client disconnected');
+      
+      // works but we have to consider the problem what happened when user just refreshed webside
+      /*
+      for(var hash in serverMethods.clients){
+        if(serverMethods.clients[hash] === this){
+          serverMethods.clients[hash] = undefined;
+        }
+      }
+      */
+      
+    });
 });

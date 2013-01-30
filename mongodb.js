@@ -126,3 +126,38 @@ exports.getOtherUsersOfChatroom = function(roomHash, callback){
     callback(room[0].users);
   });
 };
+
+exports.deleteUserFromChatroom = function(roomHash, userId){
+
+  exports.searchForChatroomEntry({ hash: roomHash },function(room){
+  
+    mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
+      if (err) {
+        return console.log(err);
+      }
+      
+      var _users = [];
+      for(var u=0; u < room.users.length; u++){
+        if( room.users[u].id != userId )
+          _users.push(room.users[u]);
+      }
+      
+      var rooms = db.collection('rooms');
+      
+      var room = {
+        hash: roomHash,
+        users: _users
+      };
+      
+      rooms.insert(room, {
+        w: 1
+      }, function(err, result) {
+        if (err) {
+          return console.log(err);
+        }
+      });
+    });
+    
+  });
+  
+};

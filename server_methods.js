@@ -1,4 +1,6 @@
-﻿// database: chatroom and user handling
+﻿require('./array_prototype');
+
+// database: chatroom and user handling
 var hash = require('./hash');
 var mongodb = require('./mongodb');
 
@@ -22,7 +24,7 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
   hash.handleClient(
     clientUrl, 
     function(clientInfo){
-      exports.trace('clientInfo: ', clientInfo);
+      
       if( clientInfo.success ){ // if true user can build chatroom or enter already created chatroom
         
         exports.clients[clientInfo.userHash] = socket;
@@ -57,15 +59,23 @@ exports.informOtherClientsOfChatroom = function(roomHash, newUserHash, subject){
     roomHash, 
     function(users){
       for(var u=0; u < users.length; u++){
+        
         var userId = users[u].id;
-        exports.clients[userId].send(JSON.stringify({
-          subject: subject, 
-          chatroomHash: roomHash, 
-          newUserHash: newUserHash
-        }));
+        
+        if( exports.isSocketConnectionAvailable( exports.clients[userId] ) ){ // socket must be open to receive message
+          exports.clients[userId].send(JSON.stringify({
+            subject: subject, 
+            chatroomHash: roomHash, 
+            newUserHash: newUserHash
+          }));
+        }
       }
     }
   );
+};
+
+exports.isSocketConnectionAvailable = function(socket){
+  return socket && socket.readyState == 1;
 };
 
 exports.trace = function(msg,obj){

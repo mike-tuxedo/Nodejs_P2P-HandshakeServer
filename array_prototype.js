@@ -1,11 +1,4 @@
-﻿Array.prototype.broadcast = function(socket,message){
-  for(var s=0; s < this.length; s++){
-    if(socket !== this[s] && this[s].readyState == 1) // first not same socket that the message is sent from and socket must be open
-      this[s].send(message);
-  }
-};
-
-// search for { hash: '...' users:[...]} and returns true if array contains objectect
+﻿// search for { hash: '...' users:[...]} and returns true if array contains objectect
 // first param can look like { hash: '123' }
 // second param can look like 'hash'
 Array.prototype.containsObject = function(object,property){

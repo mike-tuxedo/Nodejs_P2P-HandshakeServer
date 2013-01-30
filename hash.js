@@ -32,6 +32,9 @@ exports.handleClient = function(clientURL, callback){
       
       mongodb.searchForChatroomEntry({ hash: getHashFromClientURL(clientURL, '#') },function(room){
         
+        if(room.length == 0)
+          return;
+          
         infoForClient.roomHash = room[0].hash;
         infoForClient.userHash = getUniqueUserHash(room);
         infoForClient.guestIds = room.getObject({ hash: infoForClient.roomHash}).users;
