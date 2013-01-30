@@ -4,6 +4,8 @@
 var hash = require('./hash');
 var mongodb = require('./mongodb');
 
+var invitationMailer = require('./mailer');
+
 var properties = require('./properties');
 
 
@@ -51,6 +53,55 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
     }
   );
   
+};
+
+exports.passDescriptionMessagesOnToClient = function(message){
+
+  mongodb.searchForChatroomEntry(
+    { hash: message.chatroomHash },
+    function(rooms){ // check whether chatroomHash and User-ID's exist 
+      var room = rooms[0];
+      var socket = exports.clients[message.destinationHash];
+      
+      if( exports.isSocketConnectionAvailable( socket ) && room.users.getObject({ id: message.userHash }) && room.users.getObject({ id: message.destinationHash }) ){
+        
+        var msg = {
+          subject: (message.sdp ? 'sdp' : 'ice'),
+          chatroomHash: message.chatroomHash, 
+          userHash: message.userHash
+        };
+        
+        if(message.sdp)
+          msg['sdp'] = message.sdp;
+        else  
+          msg['ice'] = message.ice;
+          
+        socket.send(JSON.stringify(msg));
+      }
+    }
+  );
+  
+};
+
+exports.passMailInvitationOnToClient = function(message){
+  
+  mongodb.searchForChatroomEntry(
+    { hash: message.chatroomHash },
+    function(rooms){ // check whether chatroomHash and User-ID exist 
+      var room = rooms[0];
+      
+      if( room && room.hash == message.chatroomHash && room.users.getObject({ id: message.userHash }) ){
+        invitationMailer.sendMail({ 
+          from: message.from, 
+          to: message.to, 
+          subject: message.subject, 
+          text: message.text, 
+          html: message.html 
+        });
+      }
+    }
+  );
+          
 };
 
 // inform other clients that a new user has entered chatroom

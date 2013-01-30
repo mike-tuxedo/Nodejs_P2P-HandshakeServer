@@ -4,9 +4,6 @@ require('./array_prototype');
 var properties = require('./properties');
 
 var serverMethods = require('./server_methods');
-var mongodb = require('./mongodb');
-
-var invitationMailer = require('./mailer');
 
 // websocket-server and clients
 var WebSocketServer = require('ws').Server;
@@ -54,7 +51,7 @@ wss.on('connection', function(ws) {
       
       try{
         message = JSON.parse(message);
-        productionLogger.log('info','message got', message);
+        //productionLogger.log('info','message got', message);
       }
       catch(e){
         productionLogger.error('message is non-JSON: ', e);
@@ -69,79 +66,32 @@ wss.on('connection', function(ws) {
           serverMethods.setupNewUser(newUser, message.url);
           break;
           
-        case 'sdp': 
+        case 'sdp':
           
-          mongodb.searchForChatroomEntry(
-            { hash: message.chatroomHash },
-            function(rooms){ // check whether chatroomHash and User-ID's exist 
-              var room = rooms[0];
-              var socket = serverMethods.clients[message.destinationHash];
-              
-              if( serverMethods.isSocketConnectionAvailable( socket ) && room.users.getObject({ id: message.userHash }) && room.users.getObject({ id: message.destinationHash }) ){
-                socket.send(JSON.stringify({
-                  subject: 'sdp',
-                  chatroomHash: message.chatroomHash, 
-                  userHash: message.userHash, 
-                  sdp: message.sdp 
-                }));
-                
-              }
-            }
-          );
-          
+          serverMethods.passDescriptionMessagesOnToClient(message);
           break;
         
         case 'ice':
           
-          mongodb.searchForChatroomEntry(
-            { hash: message.chatroomHash },
-            function(rooms){ // check whether chatroomHash and User-ID's exist 
-              var room = rooms[0];
-              var socket = serverMethods.clients[message.destinationHash];
-              
-              if( serverMethods.isSocketConnectionAvailable( socket ) && room.users.getObject({ id: message.userHash }) && room.users.getObject({ id: message.destinationHash }) ){
-                
-                socket.send(JSON.stringify({ 
-                  subject: 'ice',
-                  chatroomHash: message.chatroomHash, 
-                  userHash: message.userHash, 
-                  ice: message.ice 
-                }));
-                
-              }
-            }
-          );
-          
+          serverMethods.passDescriptionMessagesOnToClient(message);
           break;
           
         case 'mail': 
-          mongodb.searchForChatroomEntry(
-            { hash: message.chatroomHash },
-            function(rooms){ // check whether chatroomHash and User-ID exist 
-              var room = rooms[0];
-              
-              if( room && room.hash == message.chatroomHash && room.users.getObject({ id: message.userHash }) ){
-                invitationMailer.sendMail({ 
-                  from: message.from, 
-                  to: message.to, 
-                  subject: message.subject, 
-                  text: message.text, 
-                  html: message.html 
-                });
-              }
-            }
-          );
+        
+          serverMethods.passMailInvitationOnToClient(message);
           break;
           
         case 'participant-leave':
+        
           serverMethods.informOtherClientsOfChatroom(message.roomHash, message.userHash, 'participant-leave');
           break;  
           
         default:
+        
           productionLogger.log('warn', 'message doesn\'t have an allowed subject property:', message);
           return;
       };
-
+      
     });
     
     ws.on('close', function(ws){ // is called when client disconnected or left
