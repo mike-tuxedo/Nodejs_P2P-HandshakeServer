@@ -16,7 +16,6 @@ var productionLogger = require('./logger').production;
 var sockets = [];
 
 
-
 wss.on('connection', function(ws) {
     
     
@@ -51,7 +50,7 @@ wss.on('connection', function(ws) {
       
       try{
         message = JSON.parse(message);
-        //productionLogger.log('info','message got', message);
+        productionLogger.log('info','message got', message);
       }
       catch(e){
         productionLogger.error('message is non-JSON: ', e);
