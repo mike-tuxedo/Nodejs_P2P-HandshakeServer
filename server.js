@@ -1,25 +1,22 @@
-require('./array_prototype');
-
 // contains all configuration-info of this project
 var properties = require('./properties');
-
-var serverMethods = require('./server_methods');
 
 // websocket-server and clients
 var WebSocketServer = require('ws').Server;
 var wss = new WebSocketServer({ port: properties.serverPort });
-
-// loggin all server activities
-var productionLogger = require('./logger').production;
+var helpers = require('./libs/helpers');
 
 // to hold all user-connections
 var sockets = [];
 
+// logging all server activities
+var productionLogger = require('./libs/logger').production;
+
 
 wss.on('connection', function(ws) {
     
-    
-    if( serverMethods.isValidOrigin(ws) ){
+    console.log(ws);
+    if( helpers.isValidOrigin(ws) ){
       productionLogger.log('info', 'client connected successfully at' + new Date().toString() );
       sockets.push(ws);
     }
@@ -62,27 +59,27 @@ wss.on('connection', function(ws) {
         case 'init': 
           
           var newUser = sockets[sockets.length-1];
-          serverMethods.setupNewUser(newUser, message.url);
+          helpers.setupNewUser(newUser, message.url);
           break;
           
         case 'sdp':
           
-          serverMethods.passDescriptionMessagesOnToClient(message);
+          helpers.passDescriptionMessagesOnToClient(message);
           break;
         
         case 'ice':
           
-          serverMethods.passDescriptionMessagesOnToClient(message);
+          helpers.passDescriptionMessagesOnToClient(message);
           break;
           
         case 'mail': 
         
-          serverMethods.passMailInvitationOnToClient(message);
+          helpers.passMailInvitationOnToClient(message);
           break;
           
         case 'participant-leave':
         
-          serverMethods.informOtherClientsOfChatroom(message.roomHash, message.userHash, 'participant-leave');
+          helpers.informOtherClientsOfChatroom(message.roomHash, message.userHash, 'participant-leave');
           break;  
           
         default:
@@ -99,9 +96,9 @@ wss.on('connection', function(ws) {
       
       // works but we have to consider the problem what happened when user just refreshed webside
       /*
-      for(var hash in serverMethods.clients){
-        if(serverMethods.clients[hash] === this){
-          serverMethods.clients[hash] = undefined;
+      for(var hash in helpers.clients){
+        if(helpers.clients[hash] === this){
+          helpers.clients[hash] = undefined;
         }
       }
       */

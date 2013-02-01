@@ -1,6 +1,6 @@
-﻿var serverMethods = require('./server_methods');
+﻿var serverMethods = require('./helpers');
 var nodemailer = require("nodemailer");
-var properties = require('./properties');
+var properties = require('./../properties');
 
 
 // smtp-server that takes care for the transport
