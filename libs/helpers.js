@@ -139,11 +139,12 @@ var handleClient = function(clientURL, callback){
     var infoForClient = {}; // this object gets ent back to the client and contains { chatroomhash: '...', userID's: [{ id: '...'},...] }
     
     if( clientURL[clientURL.length-1] == '#' ){ // is host
-      
-      mongodb.searchForChatroomEntry({},function(dump){ 
+     
+      getUniqueRoomHash(function(roomHash){
         
-        infoForClient.roomHash = getUniqueRoomHash(dump);
-        infoForClient.userHash = getUniqueUserHash(dump);
+        infoForClient.roomHash = roomHash;
+        
+        infoForClient.userHash = getUniqueUserHash([]);
         infoForClient.guestIds = [];
         
         mongodb.insertRoom(infoForClient.roomHash);
@@ -151,8 +152,9 @@ var handleClient = function(clientURL, callback){
         
         infoForClient.success = true;
         callback(infoForClient);
-      
+        
       });
+        
     }
     else if( getHashFromClientURL(clientURL, '#').length == 40 ){ // is guest with hash that has got 40 signs
       
@@ -184,14 +186,22 @@ var handleClient = function(clientURL, callback){
   }
 };
 
-var getUniqueRoomHash = function(roomObject){
+var getUniqueRoomHash = function(callback){
   var hash = null;
   
-  do{
-    hash = createHash();
-  }while(isRoomHashInUse(roomObject,hash));
+  var retryToGetHash = function(){
   
-  return hash;
+    hash = createHash();
+    mongodb.searchForChatroomEntry({ hash: hash },function(rooms){
+      if(rooms.length == 0)
+        callback(hash);
+      else
+        retryToGetHash();
+    });
+    
+  };
+  retryToGetHash();
+  
 };
 
 var getUniqueUserHash = function(roomObject){

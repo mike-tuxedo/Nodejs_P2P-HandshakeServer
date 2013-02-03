@@ -15,7 +15,6 @@ var productionLogger = require('./libs/logger').production;
 
 wss.on('connection', function(ws) {
     
-    console.log(ws);
     if( helpers.isValidOrigin(ws) ){
       productionLogger.log('info', 'client connected successfully at' + new Date().toString() );
       sockets.push(ws);
