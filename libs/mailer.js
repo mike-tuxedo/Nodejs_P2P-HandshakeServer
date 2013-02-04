@@ -21,6 +21,8 @@ var smtpTransport = nodemailer.createTransport("SMTP",{
 //    html: "<b>Hello world ?</b>" // html body
 //  }
 
+
+/* public method */
 exports.sendMail = function(mailOptions){
 
   smtpTransport.sendMail(mailOptions, function(error, response){

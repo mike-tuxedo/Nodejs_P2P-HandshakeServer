@@ -9,14 +9,14 @@ var invitationMailer = require('./mailer');
 var properties = require('./../properties');
 
 
-// to associate user-id's with user-connection's
+// to associate user-id's with user-connection-sockets
 exports.clients = {};
 
 
-//public methods
+/* public methods */
 
 exports.isValidOrigin = function(req){ // client must have got a certain domain in order to proceed
-  if(req.upgradeReq.headers.origin == properties.phovecUrl)
+  if(req.upgradeReq.headers.origin == properties.clientBrowserLocation)
     return true;
   else
     return false;
@@ -131,7 +131,9 @@ exports.isSocketConnectionAvailable = function(socket){
 };
 
 
-// private methods 
+
+/* private methods */
+
 var handleClient = function(clientURL, callback){
 
   try{

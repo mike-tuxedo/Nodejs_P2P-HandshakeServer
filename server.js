@@ -6,17 +6,20 @@ var WebSocketServer = require('ws').Server;
 var wss = new WebSocketServer({ port: properties.serverPort });
 var helpers = require('./libs/helpers');
 
-// to hold all user-connections
+// holds all user-connection-sockets
 var sockets = [];
 
 // logging all server activities
 var productionLogger = require('./libs/logger').production;
 
+// sleep-Helper
+var sleepHelper = require('sleep');
+
 
 wss.on('connection', function(ws) {
     
     if( helpers.isValidOrigin(ws) ){
-      productionLogger.log('info', 'client connected successfully at' + new Date().toString() );
+      productionLogger.log('info', 'client connected successfully at: ' + new Date().toString() );
       sockets.push(ws);
     }
     else{
@@ -46,7 +49,7 @@ wss.on('connection', function(ws) {
       
       try{
         message = JSON.parse(message);
-        productionLogger.log('info','message got', message);
+        productionLogger.log('info','message got: ', message);
       }
       catch(e){
         productionLogger.error('message is non-JSON: ', e);
@@ -89,18 +92,27 @@ wss.on('connection', function(ws) {
       
     });
     
-    ws.on('close', function(ws){ // is called when client disconnected or left
+    ws.on('close', function(){ // is called when client disconnected or left chatroom
       
-      productionLogger.log('info', 'client disconnected');
+      productionLogger.log('info', 'client disconnected at: ' + new Date().toString());
       
-      // works but we have to consider the problem what happened when user just refreshed webside
-      /*
+      // refresh 
+      var tmpClients = {};
       for(var hash in helpers.clients){
-        if(helpers.clients[hash] === this){
-          helpers.clients[hash] = undefined;
-        }
+        if(helpers.clients[hash] !== this) // this is ws object and so the socket that has disconnected or left chatroom
+          tmpClients[hash] = helpers.clients[hash];
       }
-      */
+      helpers.clients = tmpClients;
+      
+      var tmpSockets = [];
+      for(var s=0; s < sockets.length; s++){
+        if(sockets[s] !== this) // this is ws object and so the socket that has disconnected or left chatroom
+          tmpSockets.push( sockets[s] );
+      }
+      sockets = tmpSockets;
+      
+      // so that hacker can not refresh side over and over again very quickly
+      sleepHelper.sleep(2);
       
     });
 });
