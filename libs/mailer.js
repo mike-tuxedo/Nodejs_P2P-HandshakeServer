@@ -1,4 +1,4 @@
-﻿var serverMethods = require('./helpers');
+﻿var productionLogger = require('./logger').production;
 var nodemailer = require("nodemailer");
 var properties = require('./../properties');
 
@@ -27,10 +27,10 @@ exports.sendMail = function(mailOptions){
 
   smtpTransport.sendMail(mailOptions, function(error, response){
     if(error){
-      serverMethods.trace(error);
+      productionLogger.error('error happened while sending mail: ',error, new Date().toString());
     }
     else{
-      serverMethods.trace("Message sent: " + response.message);
+      productionLogger.log('info', 'mail sent successfully at: ' + new Date().toString() );
     }
   });
 
