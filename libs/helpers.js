@@ -1,6 +1,4 @@
-﻿require('./advanced_array');
-
-// database: chatroom and user handling
+﻿// database: chatroom and user handling
 var hashCrypto = require('crypto');
 var mongodb = require('./../db/mongodb');
 
@@ -8,6 +6,7 @@ var invitationMailer = require('./mailer');
 
 var properties = require('./../properties');
 
+var helperThread = require("backgrounder").spawn(__dirname + "/helper_thread.js");
 
 // to associate user-id's with user-connection-sockets
 exports.clients = {};
@@ -64,7 +63,7 @@ exports.passDescriptionMessagesOnToClient = function(message){
       var room = rooms[0];
       var socket = exports.clients[message.destinationHash];
       
-      if( exports.isSocketConnectionAvailable( socket ) && room.users.getObject({ id: message.userHash }) && room.users.getObject({ id: message.destinationHash }) ){
+      if( exports.isSocketConnectionAvailable( socket ) && getObject(room.users, { id: message.userHash }) && getObject(room.users, { id: message.destinationHash }) ){
         
         var msg = {
           subject: (message.sdp ? 'sdp' : 'ice'),
@@ -91,7 +90,7 @@ exports.passMailInvitationOnToClient = function(message){
     function(rooms){ // check whether chatroomHash and User-ID exist 
       var room = rooms[0];
       
-      if( room && room.hash == message.chatroomHash && room.users.getObject({ id: message.userHash }) ){
+      if( room && room.hash == message.chatroomHash && getObject(room.users, { id: message.userHash }) ){
         invitationMailer.sendMail({ 
           from: message.from, 
           to: message.to, 
@@ -160,14 +159,17 @@ var handleClient = function(clientURL, callback){
     }
     else if( getHashFromClientURL(clientURL, '#').length == 40 ){ // is guest with hash that has got 40 signs
       
-      mongodb.searchForChatroomEntry({ hash: getHashFromClientURL(clientURL, '#') },function(room){
+      mongodb.searchForChatroomEntry({ hash: getHashFromClientURL(clientURL, '#') },function(rooms){
         
-        if(room.length == 0)
+        var room = null;
+        if(rooms.length == 0)
           return;
-          
-        infoForClient.roomHash = room[0].hash;
+        else
+          room = rooms[0];
+        
+        infoForClient.roomHash = room.hash;
         infoForClient.userHash = getUniqueUserHash(room);
-        infoForClient.guestIds = room.getObject({ hash: infoForClient.roomHash}).users;
+        infoForClient.guestIds = room.users;
         
         if(infoForClient.guestIds.length >= 6){ // when room has already got 6 people then return error message
           infoForClient.success = false;
@@ -222,15 +224,11 @@ var createHash = function(){
   return hashCrypto.createHash('sha1').update(current_date + random).digest('hex');
 };
 
-var isRoomHashInUse = function(roomObject,roomHash){
-  return roomObject.containsObject({ hash: roomHash },'hash');
-};
-
 var isUserHashInUse = function(roomObject, roomHash, userHash){
-  var room = roomObject.getObject({ hash: roomHash});
+  var room = getObject(roomObject, { hash: roomHash});
   
   if(room && room.users){
-    return room.users.getObject({ id: userHash });
+    return getObject(room.users, { id: userHash });
   }
   else{
     false;
@@ -239,4 +237,16 @@ var isUserHashInUse = function(roomObject, roomHash, userHash){
 
 var getHashFromClientURL = function(url, signToStartAt){
   return url.slice( (url.lastIndexOf(signToStartAt) + 1), url.length); // returns # if host otherwise 5as6da9s1dsd9ds1d3a4d9sfe6eas4 if client
+};
+
+
+// searches in originalObject that must be an Object
+// and searches for searchObject like { hash: '...' }
+var getObject = function(originalObject, searchObject){
+  for(var prop in originalObject){
+    for(var innerProp in originalObject[prop])
+        if(originalObject[prop][innerProp] == searchObject[innerProp])
+            return originalObject[prop];
+  }
+  return null;
 };

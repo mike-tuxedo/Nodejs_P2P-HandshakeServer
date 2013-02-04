@@ -1,6 +1,4 @@
-﻿require('./../libs/advanced_array');
-
-var mongodb = require('mongodb').MongoClient;
+﻿var mongodb = require('mongodb').MongoClient;
 var properties = require('./../properties');
 
 
