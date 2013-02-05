@@ -10,8 +10,12 @@ var hashCrypto = require('crypto');
 // contains all configuration-info of this project
 var properties = require('./../properties');
 
+// thread-pool that manage mongo-db queries
+var helperThreads = require("backgrounder").spawn(__dirname + "/helper_thread.js", { "children-count" : 5 });
+
 // to associate user-id's with user-connection-sockets
 exports.clients = {};
+
 
 
 /* public methods */
@@ -59,8 +63,8 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
 
 exports.passDescriptionMessagesOnToClient = function(message){
 
-  mongodb.searchForChatroomEntry(
-    { hash: message.chatroomHash },
+  helperThreads.send(
+    { type: 'search-chatroom', hash: message.chatroomHash },
     function(rooms){ // check whether chatroomHash and User-ID's exist 
       var room = rooms[0];
       var socket = exports.clients[message.destinationHash];
@@ -87,8 +91,8 @@ exports.passDescriptionMessagesOnToClient = function(message){
 
 exports.passMailInvitationOnToClient = function(message){
   
-  mongodb.searchForChatroomEntry(
-    { hash: message.chatroomHash },
+  helperThreads.send(
+    { type: 'search-chatroom', hash: message.chatroomHash },
     function(rooms){ // check whether chatroomHash and User-ID exist 
       var room = rooms[0];
       
@@ -108,8 +112,8 @@ exports.passMailInvitationOnToClient = function(message){
 
 // inform other clients that a new user has entered chatroom
 exports.informOtherClientsOfChatroom = function(roomHash, newUserHash, subject){ 
-  mongodb.getOtherUsersOfChatroom(
-    roomHash, 
+  helperThreads.send(
+    { type: 'get-users', roomHash: roomHash }, 
     function(users){
       console.log(users);
       for(var u=0; u < users.length; u++){
@@ -151,8 +155,8 @@ var handleClient = function(clientURL, callback){
         infoForClient.userHash = getUniqueUserHash([]);
         infoForClient.guestIds = [];
         
-        mongodb.insertRoom(infoForClient.roomHash);
-        mongodb.insertUser(infoForClient.roomHash, infoForClient.userHash);
+        helperThreads.send({ type: 'insert-room', roomHash: infoForClient.roomHash });
+        helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash });
         
         infoForClient.success = true;
         callback(infoForClient);
@@ -162,8 +166,8 @@ var handleClient = function(clientURL, callback){
     }
     else if( getHashFromClientURL(clientURL, '#').length == 40 ){ // is guest with hash that has got 40 signs
       
-      mongodb.searchForChatroomEntry({ hash: getHashFromClientURL(clientURL, '#') },function(rooms){
-      
+      helperThreads.send({ type: 'search-chatroom', hash: getHashFromClientURL(clientURL, '#') },function(rooms){
+        
         var room = null;
         if(rooms.length == 0)
           return;
@@ -179,7 +183,7 @@ var handleClient = function(clientURL, callback){
           infoForClient.error = "chatroom fully occupied";
         }
         else{
-          mongodb.insertUser(infoForClient.roomHash, infoForClient.userHash);
+          helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash });
           infoForClient.success = true;
         }
         
@@ -200,7 +204,7 @@ var getUniqueRoomHash = function(callback){
   var retryToGetHash = function(){
   
     hash = createHash();
-    mongodb.searchForChatroomEntry({ hash: hash },function(rooms){
+    helperThreads.send({ type: 'search-chatroom', hash: hash },function(rooms){
       if(rooms.length == 0) // there is no chatroom with recently calculated hash
         callback(hash);
       else

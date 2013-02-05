@@ -3,7 +3,7 @@ var properties = require('./properties');
 
 // websocket-server and clients
 var WebSocketServer = require('ws').Server;
-var wss = new WebSocketServer({ port: properties.serverPort });
+var wss = new WebSocketServer({ port: properties.serverPort, clientTracking: false });
 
 // server methods that handle all webrtc-communications between users
 var helpers = require('./libs/helpers');
@@ -11,14 +11,16 @@ var helpers = require('./libs/helpers');
 // logging all server activities
 var productionLogger = require('./libs/logger').production;
 
-// thread-pool
-//var helperThreads = require("backgrounder").spawn(__dirname + "/libs/helper_thread.js", { "children-count" : 5 });
-
 // sleep-Helper
 var sleepHelper = require('sleep');
+var isSleeping = false;
 
 
 wss.on('connection', function(ws) {
+    
+    if(isSleeping){ // so that a bad guy can not refresh side over and over again
+      return;
+    }
     
     if( helpers.isValidOrigin(ws) ){
       productionLogger.log('info', 'client connected successfully at: ' + new Date().toString() );
@@ -104,8 +106,9 @@ wss.on('connection', function(ws) {
       }
       helpers.clients = tmpClients;
       
-      // so that hacker can not refresh side over and over again very quickly
-      sleepHelper.sleep(3);
+      isSleeping = true;
+      sleepHelper.sleep(1); // when an user disconnects then server sleeps for 1 and does not work for 1 second
+      setTimeout(function(){ isSleeping = false; }, 1000);
       
     });
 });
