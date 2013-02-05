@@ -11,8 +11,7 @@ var helpers = require('./libs/helpers');
 // logging all server activities
 var productionLogger = require('./libs/logger').production;
 
-// sleep-Helper
-var sleepHelper = require('sleep');
+// sleep-Helper for frequently websocket-connection attacks
 var isSleeping = false;
 
 
@@ -107,7 +106,7 @@ wss.on('connection', function(ws) {
       helpers.clients = tmpClients;
       
       isSleeping = true;
-      sleepHelper.sleep(1); // when an user disconnects then server sleeps for 1 and does not work for 1 second
+      // when an user disconnects then server does not work for 1 second
       setTimeout(function(){ isSleeping = false; }, 1000);
       
     });

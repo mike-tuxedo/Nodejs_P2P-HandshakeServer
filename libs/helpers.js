@@ -1,7 +1,4 @@
-﻿// database: chatroom and user handling
-var mongodb = require('./../db/mongodb');
-
-// to send invitation-mails with
+﻿// to send invitation-mails with
 var invitationMailer = require('./mailer');
 
 // to calculate hash for chatroom
