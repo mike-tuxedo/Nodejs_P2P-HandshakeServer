@@ -120,8 +120,9 @@ exports.insertUser = function(roomHash, userId) {
 };
 
 exports.getOtherUsersOfChatroom = function(roomHash, callback){
-  exports.searchForChatroomEntry({ hash: roomHash },function(room){
-    callback(room[0].users);
+  exports.searchForChatroomEntry({ hash: roomHash },function(rooms){
+    if(rooms.length && rooms[0].users)
+      callback(rooms[0].users);
   });
 };
 

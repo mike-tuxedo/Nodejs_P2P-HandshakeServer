@@ -1,12 +1,14 @@
 ﻿// database: chatroom and user handling
-var hashCrypto = require('crypto');
 var mongodb = require('./../db/mongodb');
 
+// to send invitation-mails with
 var invitationMailer = require('./mailer');
 
-var properties = require('./../properties');
+// to calculate hash for chatroom
+var hashCrypto = require('crypto');
 
-var helperThread = require("backgrounder").spawn(__dirname + "/helper_thread.js");
+// contains all configuration-info of this project
+var properties = require('./../properties');
 
 // to associate user-id's with user-connection-sockets
 exports.clients = {};
@@ -109,6 +111,7 @@ exports.informOtherClientsOfChatroom = function(roomHash, newUserHash, subject){
   mongodb.getOtherUsersOfChatroom(
     roomHash, 
     function(users){
+      console.log(users);
       for(var u=0; u < users.length; u++){
         
         var userId = users[u].id;
@@ -136,13 +139,13 @@ exports.isSocketConnectionAvailable = function(socket){
 var handleClient = function(clientURL, callback){
 
   try{
-  
-    var infoForClient = {}; // this object gets ent back to the client and contains { chatroomhash: '...', userID's: [{ id: '...'},...] }
+    
+    var infoForClient = {};
     
     if( clientURL[clientURL.length-1] == '#' ){ // is host
-     
+      
       getUniqueRoomHash(function(roomHash){
-        
+          
         infoForClient.roomHash = roomHash;
         
         infoForClient.userHash = getUniqueUserHash([]);
@@ -155,12 +158,12 @@ var handleClient = function(clientURL, callback){
         callback(infoForClient);
         
       });
-        
+      
     }
     else if( getHashFromClientURL(clientURL, '#').length == 40 ){ // is guest with hash that has got 40 signs
       
       mongodb.searchForChatroomEntry({ hash: getHashFromClientURL(clientURL, '#') },function(rooms){
-        
+      
         var room = null;
         if(rooms.length == 0)
           return;
@@ -181,13 +184,14 @@ var handleClient = function(clientURL, callback){
         }
         
         callback(infoForClient);
-      });
+      });      
     }
     
   }
   catch(e){
     console.log('error happend:',e);
   }
+  
 };
 
 var getUniqueRoomHash = function(callback){
@@ -197,7 +201,7 @@ var getUniqueRoomHash = function(callback){
   
     hash = createHash();
     mongodb.searchForChatroomEntry({ hash: hash },function(rooms){
-      if(rooms.length == 0)
+      if(rooms.length == 0) // there is no chatroom with recently calculated hash
         callback(hash);
       else
         retryToGetHash();

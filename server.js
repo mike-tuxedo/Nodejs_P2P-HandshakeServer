@@ -4,13 +4,15 @@ var properties = require('./properties');
 // websocket-server and clients
 var WebSocketServer = require('ws').Server;
 var wss = new WebSocketServer({ port: properties.serverPort });
-var helpers = require('./libs/helpers');
 
-// holds all user-connection-sockets
-var sockets = [];
+// server methods that handle all webrtc-communications between users
+var helpers = require('./libs/helpers');
 
 // logging all server activities
 var productionLogger = require('./libs/logger').production;
+
+// thread-pool
+//var helperThreads = require("backgrounder").spawn(__dirname + "/libs/helper_thread.js", { "children-count" : 5 });
 
 // sleep-Helper
 var sleepHelper = require('sleep');
@@ -20,7 +22,6 @@ wss.on('connection', function(ws) {
     
     if( helpers.isValidOrigin(ws) ){
       productionLogger.log('info', 'client connected successfully at: ' + new Date().toString() );
-      sockets.push(ws);
     }
     else{
       productionLogger.error('client not accepted: ',ws.upgradeReq.headers.origin);
@@ -60,8 +61,7 @@ wss.on('connection', function(ws) {
       switch(message.subject){
         case 'init': 
           
-          var newUser = sockets[sockets.length-1];
-          helpers.setupNewUser(newUser, message.url);
+          helpers.setupNewUser(this, message.url); // this is socket that sent an init-message
           break;
           
         case 'sdp':
@@ -96,7 +96,7 @@ wss.on('connection', function(ws) {
       
       productionLogger.log('info', 'client disconnected at: ' + new Date().toString());
       
-      // refresh 
+      // delete client form client object
       var tmpClients = {};
       for(var hash in helpers.clients){
         if(helpers.clients[hash] !== this) // this is ws object and so the socket that has disconnected or left chatroom
@@ -104,15 +104,8 @@ wss.on('connection', function(ws) {
       }
       helpers.clients = tmpClients;
       
-      var tmpSockets = [];
-      for(var s=0; s < sockets.length; s++){
-        if(sockets[s] !== this) // this is ws object and so the socket that has disconnected or left chatroom
-          tmpSockets.push( sockets[s] );
-      }
-      sockets = tmpSockets;
-      
       // so that hacker can not refresh side over and over again very quickly
-      sleepHelper.sleep(2);
+      sleepHelper.sleep(3);
       
     });
 });

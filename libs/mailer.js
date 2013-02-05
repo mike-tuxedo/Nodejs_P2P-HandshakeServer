@@ -1,7 +1,6 @@
-﻿var productionLogger = require('./logger').production;
-var nodemailer = require("nodemailer");
+﻿var nodemailer = require("nodemailer");
 var properties = require('./../properties');
-
+var productionLogger = require('./logger').production;
 
 // smtp-server that takes care for the transport
 var smtpTransport = nodemailer.createTransport("SMTP",{
