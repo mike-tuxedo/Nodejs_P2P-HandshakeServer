@@ -97,6 +97,7 @@ wss.on('connection', function(ws) {
       
       productionLogger.log('info', 'client disconnected at: ' + new Date().toString());
       
+      
       var userHashToDelete = null;
       // delete client form client object
       var tmpClients = {};
@@ -108,8 +109,14 @@ wss.on('connection', function(ws) {
       }
       helpers.clients = tmpClients;
       
-      if( this['roomHash'] && userHashToDelete )
+      
+      if( this['roomHash'] && userHashToDelete ){
         helpers.deleteUserFromDatabase(this['roomHash'], userHashToDelete);
+        
+        // user might have left chatroom without pressing leave button then inform other chatroom-users as well
+        helpers.informOtherClientsOfChatroom(this['roomHash'], userHashToDelete, 'participant-leave');
+      }
+      
       
       isSleeping = true;
       // when an user disconnects then server does not work for 1.5 second
