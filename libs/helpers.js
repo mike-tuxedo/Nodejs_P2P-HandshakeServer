@@ -32,6 +32,7 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
       
       if( clientInfo.success ){ // if true user can build chatroom or enter already created chatroom
         
+        socket['roomHash'] = clientInfo.roomHash;
         exports.clients[clientInfo.userHash] = socket;
         
         socket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
@@ -66,7 +67,7 @@ exports.passDescriptionMessagesOnToClient = function(message){
       var room = rooms[0];
       var socket = exports.clients[message.destinationHash];
       
-      if( exports.isSocketConnectionAvailable( socket ) && getObject(room.users, { id: message.userHash }) && getObject(room.users, { id: message.destinationHash }) ){
+      if( isSocketConnectionAvailable( socket ) && getObject(room.users, { id: message.userHash }) && getObject(room.users, { id: message.destinationHash }) ){
         
         var msg = {
           subject: (message.sdp ? 'sdp' : 'ice'),
@@ -104,7 +105,7 @@ exports.passMailInvitationOnToClient = function(message){
       }
     }
   );
-          
+
 };
 
 // inform other clients that a new user has entered chatroom
@@ -112,12 +113,12 @@ exports.informOtherClientsOfChatroom = function(roomHash, newUserHash, subject){
   helperThreads.send(
     { type: 'get-users', roomHash: roomHash }, 
     function(users){
-      console.log(users);
+      
       for(var u=0; u < users.length; u++){
         
         var userId = users[u].id;
         
-        if( exports.isSocketConnectionAvailable( exports.clients[userId] ) ){ // socket must be open to receive message
+        if( isSocketConnectionAvailable( exports.clients[userId] ) ){ // socket must be open to receive message
           exports.clients[userId].send(JSON.stringify({
             subject: subject, 
             chatroomHash: roomHash, 
@@ -129,13 +130,17 @@ exports.informOtherClientsOfChatroom = function(roomHash, newUserHash, subject){
   );
 };
 
-exports.isSocketConnectionAvailable = function(socket){
-  return socket && socket.readyState == 1;
+exports.deleteUserFromDatabase = function(roomHash, userHash){
+  helperThreads.send({ type: 'delete-users', roomHash: roomHash, userHash: userHash });
 };
 
 
 
 /* private methods */
+
+var isSocketConnectionAvailable = function(socket){
+  return socket && socket.readyState == 1;
+};
 
 var handleClient = function(clientURL, callback){
 

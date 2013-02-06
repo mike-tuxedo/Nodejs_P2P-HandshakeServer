@@ -19,6 +19,10 @@ process.on('message', function(msg, callback) {
     case 'get-users':
       mongodb.getOtherUsersOfChatroom(msg.roomHash,callback);
       break;
+    
+    case 'delete-users':
+      mongodb.deleteUserFromChatroom(msg.roomHash, msg.userHash);
+      break;
   };
   
 });

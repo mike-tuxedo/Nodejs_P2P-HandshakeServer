@@ -97,17 +97,23 @@ wss.on('connection', function(ws) {
       
       productionLogger.log('info', 'client disconnected at: ' + new Date().toString());
       
+      var userHashToDelete = null;
       // delete client form client object
       var tmpClients = {};
       for(var hash in helpers.clients){
         if(helpers.clients[hash] !== this) // this is ws object and so the socket that has disconnected or left chatroom
           tmpClients[hash] = helpers.clients[hash];
+        else
+          userHashToDelete = hash;
       }
       helpers.clients = tmpClients;
       
+      if( this['roomHash'] && userHashToDelete )
+        helpers.deleteUserFromDatabase(this['roomHash'], userHashToDelete);
+      
       isSleeping = true;
-      // when an user disconnects then server does not work for 1 second
-      setTimeout(function(){ isSleeping = false; }, 1000);
+      // when an user disconnects then server does not work for 1.5 second
+      setTimeout(function(){ isSleeping = false; }, 1500);
       
     });
 });
