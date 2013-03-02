@@ -6,17 +6,18 @@ exports.searchForChatroomEntry = function(condition,callback) {
   
   try{
   
-    if (typeof condition != 'object' || !callback) {
+    if (typeof condition !== 'object' || !callback) {
       return false;
     }
-  
+    
     mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
       if (err) {
-        console.log('error happend while searching chatroom in db: ',e);
+        console.log('error happend while searching chatroom in db: ',err);
         return;
       }
 
       db.collection('rooms', function(err, collection) {
+        
         if (err) {
           console.log(err);
           return;
@@ -31,8 +32,10 @@ exports.searchForChatroomEntry = function(condition,callback) {
           if(items)
             callback(items);
           
+          db.close();
+          
         });
-
+        
       });
       
     });
@@ -45,7 +48,7 @@ exports.searchForChatroomEntry = function(condition,callback) {
   return null;
 };
 
-exports.insertRoom = function(roomHash,oldUsers) {
+exports.insertRoom = function(roomHash, oldUsers, callback) {
 
   try{
   
@@ -54,6 +57,7 @@ exports.insertRoom = function(roomHash,oldUsers) {
     }
 
     mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
+      
       if (err) {
         console.log('error happend while inserting chatroom into db: ',e);
         return;
@@ -90,6 +94,11 @@ exports.insertRoom = function(roomHash,oldUsers) {
         );
       }
       
+      db.close();
+      
+      if(callback)
+        callback();
+        
     });
     
   }
@@ -98,7 +107,45 @@ exports.insertRoom = function(roomHash,oldUsers) {
   }
 };
 
-exports.insertUser = function(roomHash, userId) {
+exports.deleteRoom  = function(roomHash){
+  
+  try{
+  
+    if (!roomHash) {
+      return false;
+    }
+
+    mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
+      
+      if (err) {
+        console.log('error happend while inserting chatroom into db: ',e);
+        return;
+      }
+
+      var rooms = db.collection('rooms');
+      
+      rooms.remove({ hash: roomHash }, 
+        { w: 1 }, 
+        function(err, result) {
+          if (err) {
+            console.log(err);
+            return;
+          }
+        }
+      );
+      
+      db.close();
+      
+    });
+    
+  }
+  catch(e){
+    console.log('error happend while delete chatroom into db: ',e);
+  }
+  
+};
+
+exports.insertUser = function(roomHash, userId, callback) {
 
   try{
   
@@ -107,17 +154,17 @@ exports.insertUser = function(roomHash, userId) {
     }
 
     mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
+      
       if (err) {
         console.log('error happend while inserting user into chatroom: ',err);
         return;
       }
       
-      
       exports.searchForChatroomEntry(
         { hash: roomHash},
         function(rooms){
           
-          if(!rooms)
+          if(!rooms || !rooms.length)
             return;
           
           var _users = rooms[0].users;
@@ -137,6 +184,11 @@ exports.insertUser = function(roomHash, userId) {
               }
             }
           );
+          
+          db.close();
+          
+          if(callback)
+            callback();
         }
       );
       
@@ -150,12 +202,12 @@ exports.insertUser = function(roomHash, userId) {
 
 exports.getOtherUsersOfChatroom = function(roomHash, callback){
   exports.searchForChatroomEntry({ hash: roomHash },function(rooms){
-    if(rooms.length && rooms[0].users)
+    if(rooms && rooms.length && rooms[0].users)
       callback(rooms[0].users);
   });
 };
 
-exports.deleteUserFromChatroom = function(roomHash, userId){
+exports.deleteUserFromChatroom = function(roomHash, userId, callback){
   
   try{
     
@@ -173,7 +225,7 @@ exports.deleteUserFromChatroom = function(roomHash, userId){
           users.push(room.users[u]);
       }
       
-      exports.insertRoom(roomHash, users);
+      exports.insertRoom(roomHash, users, callback);
       
     });
     

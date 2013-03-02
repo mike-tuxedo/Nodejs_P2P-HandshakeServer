@@ -1,3 +1,4 @@
 properties.js
 node_modules/*
 *.project
+tests/node_modules/*

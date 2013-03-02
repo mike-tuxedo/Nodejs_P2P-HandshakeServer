@@ -17,10 +17,6 @@ var isSleeping = false;
 
 wss.on('connection', function(ws) {
     
-    if(isSleeping){ // so that a bad guy can not refresh side over and over again
-      return;
-    }
-    
     if( helpers.isValidOrigin(ws) ){
       productionLogger.log('info', 'client connected successfully at: ' + new Date().toString() );
     }
@@ -39,8 +35,8 @@ wss.on('connection', function(ws) {
     //// spd/ice -> { subject: 'sdp/ice', chatroomHash: '...', userHash: '...', spd or ice: Object }
     
     /* information-kinds: */
-    // new user: { subject: 'participant-join', chatroomHash: '...', newUserHash: '...' }
-    // use leaves: { subject: 'participant-leave', chatroomHash: '...', newUserHash: '...' }
+    // new user: { subject: 'participant-join', chatroomHash: '...', userHash: '...' }
+    // use leaves: { subject: 'participant-leave', chatroomHash: '...', userHash: '...' }
     
     /* e-mail invitations */
     //// { subject: 'mail', chatroomHash: '...', userHash: '...', mail: { from: '...', to: '...', subject: '...', text: 'Hello World', html: '<b>Hello World</b>' } }
@@ -51,7 +47,6 @@ wss.on('connection', function(ws) {
       
       try{
         message = JSON.parse(message);
-        productionLogger.log('info','message got: ', message);
       }
       catch(e){
         productionLogger.error('message is non-JSON: ', e);
@@ -61,7 +56,8 @@ wss.on('connection', function(ws) {
       
       switch(message.subject){
         case 'init': 
-          
+        
+          productionLogger.log('info','message got: ', message);
           helpers.setupNewUser(this, message.url); // this is socket that sent an init-message
           break;
           
@@ -102,7 +98,7 @@ wss.on('connection', function(ws) {
       // delete client form client object
       var tmpClients = {};
       for(var hash in helpers.clients){
-        if(helpers.clients[hash] !== this) // this is ws object and so the socket that has disconnected or left chatroom
+        if(helpers.clients[hash] !== this) // this is a ws-object and so the user that has disconnected or left chatroom
           tmpClients[hash] = helpers.clients[hash];
         else
           userHashToDelete = hash;
@@ -116,11 +112,6 @@ wss.on('connection', function(ws) {
         // user might have left chatroom without pressing leave button then inform other chatroom-users as well
         helpers.informOtherClientsOfChatroom(this['roomHash'], userHashToDelete, 'participant-leave');
       }
-      
-      
-      isSleeping = true;
-      // when an user disconnects then server does not work for 1.5 second
-      setTimeout(function(){ isSleeping = false; }, 1500);
       
     });
 });

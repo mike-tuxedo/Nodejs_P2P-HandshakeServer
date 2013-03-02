@@ -21,8 +21,18 @@ process.on('message', function(msg, callback) {
       break;
     
     case 'delete-users':
-      mongodb.deleteUserFromChatroom(msg.roomHash, msg.userHash);
-      break;
+      mongodb.deleteUserFromChatroom(msg.roomHash, msg.userHash, function(){
+        
+        mongodb.searchForChatroomEntry({ hash: msg.roomHash },function(rooms){
+          
+          var room = rooms[0];
+          if( room && room.users && room.users.length === 0)
+            deleteChatroomFormDatabase(room.hash);
+          
+        });
+        
+      });
+      
   };
   
 });

@@ -8,7 +8,7 @@ var hashCrypto = require('crypto');
 var properties = require('./../properties');
 
 // thread-pool that manage mongo-db queries
-var helperThreads = require("backgrounder").spawn(__dirname + "/helper_thread.js", { "children-count" : 5 });
+var helperThreads = require("backgrounder").spawn(__dirname + "/helper_thread.js"); // , { "children-count" : 5 }
 
 // to associate user-id's with user-connection-sockets
 exports.clients = {};
@@ -18,7 +18,7 @@ exports.clients = {};
 /* public methods */
 
 exports.isValidOrigin = function(req){ // client must have got a certain domain in order to proceed
-  if(req.upgradeReq.headers.origin == properties.clientBrowserLocation)
+  if(req.upgradeReq.headers.origin === properties.clientBrowserLocation)
     return true;
   else
     return false;
@@ -46,6 +46,7 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
         
       }
       else{
+        console.log(clientInfo);
         socket.send(JSON.stringify({
           subject: 'init',
           chatroomHash: clientInfo.roomHash, 
@@ -109,7 +110,7 @@ exports.passMailInvitationOnToClient = function(message){
 };
 
 // inform other clients that a new user has entered chatroom
-exports.informOtherClientsOfChatroom = function(roomHash, newUserHash, subject){ 
+exports.informOtherClientsOfChatroom = function(roomHash, userHash, subject){ 
   helperThreads.send(
     { type: 'get-users', roomHash: roomHash }, 
     function(users){
@@ -122,7 +123,7 @@ exports.informOtherClientsOfChatroom = function(roomHash, newUserHash, subject){
           exports.clients[userId].send(JSON.stringify({
             subject: subject, 
             chatroomHash: roomHash, 
-            newUserHash: newUserHash
+            userHash: userHash
           }));
         }
       }
@@ -148,7 +149,7 @@ var handleClient = function(clientURL, callback){
     
     var infoForClient = {};
     
-    if( clientURL[clientURL.length-1] == '#' ){ // is host
+    if( identifyAsHostUrl(clientURL) ){ // is host when url has got this '#/room' at the end
       
       getUniqueRoomHash(function(roomHash){
           
@@ -166,9 +167,9 @@ var handleClient = function(clientURL, callback){
       });
       
     }
-    else if( getHashFromClientURL(clientURL, '#').length == 40 ){ // is guest with hash that has got 40 signs
+    else if( getHashFromClientURL(clientURL, '#/room/').length === 40 ){ // is guest with hash that has got 40 signs
       
-      helperThreads.send({ type: 'search-chatroom', hash: getHashFromClientURL(clientURL, '#') },function(rooms){
+      helperThreads.send({ type: 'search-chatroom', hash: getHashFromClientURL(clientURL, '#/room/') },function(rooms){
         
         var room = null;
         if(rooms.length == 0)
@@ -177,6 +178,7 @@ var handleClient = function(clientURL, callback){
           room = rooms[0];
         
         infoForClient.roomHash = room.hash;
+        
         infoForClient.userHash = getUniqueUserHash(room);
         infoForClient.guestIds = room.users;
         
@@ -198,6 +200,10 @@ var handleClient = function(clientURL, callback){
     console.log('error happend:',e);
   }
   
+};
+
+var deleteChatroomFormDatabase = function(roomHash){
+  helperThreads.send({ type: 'delete-room', roomHash: roomHash });
 };
 
 var getUniqueRoomHash = function(callback){
@@ -246,9 +252,12 @@ var isUserHashInUse = function(roomObject, roomHash, userHash){
 };
 
 var getHashFromClientURL = function(url, signToStartAt){
-  return url.slice( (url.lastIndexOf(signToStartAt) + 1), url.length); // returns # if host otherwise 5as6da9s1dsd9ds1d3a4d9sfe6eas4 if client
+  return url.slice( (url.lastIndexOf(signToStartAt) + signToStartAt.length), url.length); // returns # if host otherwise 5as6da9s1dsd9ds1d3a4d9sfe6eas4 if client
 };
 
+var identifyAsHostUrl = function(url){
+  return url.slice(url.length-6,url.length) === '#/room';
+};
 
 // searches in originalObject that must be an Object
 // and searches for searchObject like { hash: '...' }
@@ -260,3 +269,9 @@ var getObject = function(originalObject, searchObject){
   }
   return null;
 };
+
+
+// test methods 
+exports.test = {};
+exports.test.getHashFromClientURL = getHashFromClientURL;
+exports.test.handleClient = handleClient;
