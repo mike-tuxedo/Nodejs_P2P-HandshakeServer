@@ -27,7 +27,7 @@ process.on('message', function(msg, callback) {
           
           var room = rooms[0];
           if( room && room.users && room.users.length === 0)
-            deleteChatroomFormDatabase(room.hash);
+            mongodb.deleteRoom(room.hash);
           
         });
         

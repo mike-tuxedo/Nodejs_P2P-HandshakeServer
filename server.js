@@ -11,9 +11,6 @@ var helpers = require('./libs/helpers');
 // logging all server activities
 var productionLogger = require('./libs/logger').production;
 
-// sleep-Helper for frequently websocket-connection attacks
-var isSleeping = false;
-
 
 wss.on('connection', function(ws) {
     
