@@ -1,9 +1,9 @@
-// contains all configuration-info of this project
+﻿// contains all configuration-info of this project
 var properties = require('./properties');
 
 // websocket-server and clients
 var WebSocketServer = require('ws').Server;
-var wss = new WebSocketServer({ port: properties.serverPort, clientTracking: false });
+var wss = new WebSocketServer({ port: properties.serverPort });
 
 // server methods that handle all webrtc-communications between users
 var helpers = require('./libs/helpers');
@@ -89,7 +89,6 @@ wss.on('connection', function(ws) {
     ws.on('close', function(){ // is called when client disconnected or left chatroom
       
       productionLogger.log('info', 'client disconnected at: ' + new Date().toString());
-      
       
       var userHashToDelete = null;
       // delete client form client object

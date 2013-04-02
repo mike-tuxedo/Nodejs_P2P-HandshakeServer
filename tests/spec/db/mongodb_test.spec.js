@@ -1,19 +1,24 @@
 ﻿var mongodb = require('../../../db/mongodb');
 
-var chatroom_hash = 'test_Chatroom_1234';
-var first_user_hash = 'test_User_007';
-var second_user_hash = 'test_User_123';
+var chatroom_hash = 'test_mongodb_chatroom_1234';
+var first_user_hash = 'test_mongodb_user_007';
+var second_user_hash = 'test_mongodb_user_123';
 
 var chatroom_created = false;
 
 
-beforeEach(function () {
+beforeEach(function (done) {
   
   if(!chatroom_created){
-    mongodb.insertRoom(chatroom_hash,null);
+    // create room with no users, third param is a callback methode that is called when insert has finished
+    mongodb.insertRoom(chatroom_hash,null,function(){ 
+      done();
+    }); 
     chatroom_created = true;
   }
-  
+  else
+    done();
+    
 });
 
 
@@ -35,7 +40,6 @@ describe('database insert queries', function() {
     
       mongodb.searchForChatroomEntry({ hash: chatroom_hash},function(rooms){
         var room = rooms[0];
-        console.log(room);
         expect(first_user_hash).toEqual(room.users[0].id); // must be host
         done();
       });
@@ -50,7 +54,6 @@ describe('database insert queries', function() {
     
       mongodb.searchForChatroomEntry({ hash: chatroom_hash},function(rooms){
         var room = rooms[0];
-        console.log(room);
         expect(second_user_hash).toEqual(room.users[1].id); // must be first guest
         done();
       });
@@ -67,11 +70,13 @@ describe('database delete queries', function() {
   it('should not return an chatroom object', function(done) {
     
     // isert dummy-chatroom object
-    mongodb.deleteRoom(chatroom_hash);
+    mongodb.deleteRoom(chatroom_hash,function(){
     
-    mongodb.searchForChatroomEntry({ hash: chatroom_hash},function(rooms){
-      expect(0).toEqual(rooms.length);
-      done();
+      mongodb.searchForChatroomEntry({ hash: chatroom_hash},function(rooms){
+        expect(0).toEqual(rooms.length);
+        done();
+      });
+    
     });
     
   });

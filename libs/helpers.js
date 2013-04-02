@@ -35,18 +35,19 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
         socket['roomHash'] = clientInfo.roomHash;
         exports.clients[clientInfo.userHash] = socket;
         
-        socket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
-          subject: 'init',
-          chatroomHash: clientInfo.roomHash, 
-          userHash: clientInfo.userHash, 
-          guestIds: clientInfo.guestIds 
-        }));
+        if(isSocketConnectionAvailable(socket)){
+          socket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
+            subject: 'init',
+            chatroomHash: clientInfo.roomHash, 
+            userHash: clientInfo.userHash, 
+            guestIds: clientInfo.guestIds 
+          }));
+        }
         
         exports.informOtherClientsOfChatroom(clientInfo.roomHash, clientInfo.userHash, 'participant-join');
-        
+        console.log('after exports.informOtherClientsOfChatroom');
       }
       else{
-        console.log(clientInfo);
         socket.send(JSON.stringify({
           subject: 'init',
           chatroomHash: clientInfo.roomHash, 
@@ -114,7 +115,7 @@ exports.informOtherClientsOfChatroom = function(roomHash, userHash, subject){
   helperThreads.send(
     { type: 'get-users', roomHash: roomHash }, 
     function(users){
-      
+      console.log('widthin exports.informOtherClientsOfChatroom',users);
       for(var u=0; u < users.length; u++){
         
         var userId = users[u].id;
@@ -152,17 +153,22 @@ var handleClient = function(clientURL, callback){
     if( identifyAsHostUrl(clientURL) ){ // is host when url has got this '#/room' at the end
       
       getUniqueRoomHash(function(roomHash){
-          
+        
         infoForClient.roomHash = roomHash;
         
         infoForClient.userHash = getUniqueUserHash([]);
         infoForClient.guestIds = [];
         
-        helperThreads.send({ type: 'insert-room', roomHash: infoForClient.roomHash });
-        helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash });
-        
-        infoForClient.success = true;
-        callback(infoForClient);
+        helperThreads.send({ type: 'insert-room', roomHash: infoForClient.roomHash },function(){
+          
+          helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash },function(){
+            
+            infoForClient.success = true;
+            callback(infoForClient);
+          
+          });
+          
+        });
         
       });
       
@@ -187,11 +193,12 @@ var handleClient = function(clientURL, callback){
           infoForClient.error = "chatroom fully occupied";
         }
         else{
-          helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash });
-          infoForClient.success = true;
+          helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash },function(){
+            infoForClient.success = true;
+            callback(infoForClient);
+          });
         }
         
-        callback(infoForClient);
       });      
     }
     

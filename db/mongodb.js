@@ -107,7 +107,7 @@ exports.insertRoom = function(roomHash, oldUsers, callback) {
   }
 };
 
-exports.deleteRoom  = function(roomHash){
+exports.deleteRoom  = function(roomHash,callback){
   
   try{
   
@@ -136,6 +136,9 @@ exports.deleteRoom  = function(roomHash){
       
       db.close();
       
+      if(callback)
+        callback();
+        
     });
     
   }
