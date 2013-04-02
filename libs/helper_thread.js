@@ -9,12 +9,10 @@ process.on('message', function(msg, callback) {
       break;
       
     case 'insert-room':
-      console.log('insert-room');
       mongodb.insertRoom(msg.roomHash,null,callback);
       break;
       
     case 'insert-user':
-      console.log('insert-user');
       mongodb.insertUser(msg.roomHash, msg.userHash,callback);
       break;
     

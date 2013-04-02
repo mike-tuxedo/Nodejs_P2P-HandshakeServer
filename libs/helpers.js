@@ -120,7 +120,7 @@ exports.informOtherClientsOfChatroom = function(roomHash, userHash, subject){
         
         var userId = users[u].id;
         
-        if( isSocketConnectionAvailable( exports.clients[userId] ) ){ // socket must be open to receive message
+        if( userId != userHash && isSocketConnectionAvailable( exports.clients[userId] ) ){ // socket must be open to receive message
           exports.clients[userId].send(JSON.stringify({
             subject: subject, 
             chatroomHash: roomHash, 
@@ -220,7 +220,7 @@ var getUniqueRoomHash = function(callback){
   
     hash = createHash();
     helperThreads.send({ type: 'search-chatroom', hash: hash },function(rooms){
-      if(rooms.length == 0) // there is no chatroom with recently calculated hash
+      if(rooms && rooms.length == 0) // there is no chatroom with recently calculated hash
         callback(hash);
       else
         retryToGetHash();
@@ -232,13 +232,13 @@ var getUniqueRoomHash = function(callback){
 };
 
 var getUniqueUserHash = function(roomObject){
-  var hash = null;
+  var userHash = null;
   
   do{
-    hash = createHash();
-  }while(isUserHashInUse(roomObject, hash));
+    userHash = createHash();
+  }while(isUserHashInUse(roomObject, roomObject.hash, userHash));
   
-  return hash;
+  return userHash;
 };
 
 var createHash = function(){
