@@ -14,11 +14,13 @@ var productionLogger = require('./libs/logger').production;
 
 wss.on('connection', function(ws) {
     
+    var timestamp = helpers.formatTime(new Date().getTime());
+    
     if( helpers.isValidOrigin(ws) ){
-      productionLogger.log('info', 'client connected successfully at: ' + new Date().toString() );
+      productionLogger.log('info', timestamp + ' client accepted');
     }
     else{
-      productionLogger.error('client not accepted: ',ws.upgradeReq.headers.origin);
+      productionLogger.error('info', timestamp + ' client not accepted: ' + ws.upgradeReq.headers.origin);
       return;
     }
     
@@ -42,19 +44,20 @@ wss.on('connection', function(ws) {
 
     ws.on('message', function(message) {
       
+      var timestamp = helpers.formatTime(new Date().getTime());
+      
       try{
         message = JSON.parse(message);
+        productionLogger.log('info', timestamp, ('got ' + message.subject));
       }
       catch(e){
-        productionLogger.error('message is non-JSON: ', e);
+        productionLogger.error('info', timestamp, 'message is non-JSON');
         return;
       }
-      
       
       switch(message.subject){
         case 'init': 
         
-          productionLogger.log('info','message got: ', message);
           helpers.setupNewUser(this, message.url); // this is socket that sent an init-message
           break;
           
@@ -81,14 +84,15 @@ wss.on('connection', function(ws) {
         default:
         
           productionLogger.log('warn', 'message doesn\'t have an allowed subject property:', message);
-          return;
       };
       
     });
     
     ws.on('close', function(){ // is called when client disconnected or left chatroom
-      console.log('client is closing');
-      productionLogger.log('info', 'client disconnected at: ' + new Date().toString());
+      
+      var timestamp = helpers.formatTime(new Date().getTime());
+      
+      productionLogger.log('info', timestamp + ' client disconnected');
       
       var userHashToDelete = null;
       // delete client form client object
@@ -110,4 +114,9 @@ wss.on('connection', function(ws) {
       }
       
     });
+});
+
+wss.on('error', function(error) {
+  var timestamp = helpers.formatTime(new Date().getTime());
+  productionLogger.error('error', timestamp + ' server error ' + error);
 });

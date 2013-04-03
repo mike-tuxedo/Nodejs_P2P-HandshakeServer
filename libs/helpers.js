@@ -10,6 +10,9 @@ var properties = require('./../properties');
 // thread-pool that manage mongo-db queries
 var helperThreads = require("backgrounder").spawn(__dirname + "/helper_thread.js"); // , { "children-count" : 5 }
 
+// logging all send activities
+var productionLogger = require('./logger').production;
+
 // to associate user-id's with user-connection-sockets
 exports.clients = {};
 
@@ -30,6 +33,8 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
     clientUrl, 
     function(clientInfo){
       
+      var timestamp = exports.formatTime(new Date().getTime());
+      
       if( clientInfo.success ){ // if true user can build chatroom or enter already created chatroom
         
         socket['roomHash'] = clientInfo.roomHash;
@@ -44,14 +49,18 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
           }));
         }
         
+        productionLogger.log('info', timestamp + ' send init');
+        
         exports.informOtherClientsOfChatroom(clientInfo.roomHash, clientInfo.userHash, 'participant-join');
-        console.log('after exports.informOtherClientsOfChatroom');
+
       }
       else{
         socket.send(JSON.stringify({
           subject: 'init',
           error: clientInfo.error
         }));
+        
+        productionLogger.error('error', timestamp + ' room error ' + clientInfo.error);
       }
     }
   );
@@ -63,8 +72,10 @@ exports.passDescriptionMessagesOnToClient = function(message){
   helperThreads.send(
     { type: 'search-chatroom', hash: message.chatroomHash },
     function(rooms){ // check whether chatroomHash and User-ID's exist 
+      
       var room = rooms[0];
       var socket = exports.clients[message.destinationHash];
+      var timestamp = exports.formatTime(new Date().getTime());
       
       if( isSocketConnectionAvailable( socket ) && getObject(room.users, { id: message.userHash }) && getObject(room.users, { id: message.destinationHash }) ){
         
@@ -80,6 +91,8 @@ exports.passDescriptionMessagesOnToClient = function(message){
           msg['ice'] = message.ice;
           
         socket.send(JSON.stringify(msg));
+        
+        productionLogger.log('info', timestamp + (' send ' + (message.sdp ? 'sdp' : 'ice')) );
       }
     }
   );
@@ -92,6 +105,7 @@ exports.passMailInvitationOnToClient = function(message){
     { type: 'search-chatroom', hash: message.chatroomHash },
     function(rooms){ // check whether chatroomHash and User-ID exist 
       var room = rooms[0];
+      var timestamp = exports.formatTime(new Date().getTime());
       
       if( room && room.hash == message.chatroomHash && getObject(room.users, { id: message.userHash }) ){
         invitationMailer.sendMail({ 
@@ -101,6 +115,7 @@ exports.passMailInvitationOnToClient = function(message){
           text: message.text, 
           html: message.html 
         });
+        productionLogger.log('info', timestamp + ' send mail');
       }
     }
   );
@@ -112,7 +127,9 @@ exports.informOtherClientsOfChatroom = function(roomHash, userHash, subject){
   helperThreads.send(
     { type: 'get-users', roomHash: roomHash }, 
     function(users){
-      console.log('widthin exports.informOtherClientsOfChatroom',users);
+      
+      var timestamp = exports.formatTime(new Date().getTime());
+      
       for(var u=0; u < users.length; u++){
         
         var userId = users[u].id;
@@ -125,6 +142,10 @@ exports.informOtherClientsOfChatroom = function(roomHash, userHash, subject){
           }));
         }
       }
+      
+      if(users.length > 1){
+        productionLogger.log('info', timestamp + (' send participant ' + subject) );
+      }
     }
   );
 };
@@ -133,6 +154,28 @@ exports.deleteUserFromDatabase = function(roomHash, userHash){
   helperThreads.send({ type: 'delete-users', roomHash: roomHash, userHash: userHash });
 };
 
+
+exports.formatTime = function(timestamp) {
+  var dateTime = new Date(timestamp);
+  var hours = dateTime.getHours();
+  var minutes = dateTime.getMinutes();
+  var seconds = dateTime.getSeconds();
+  var miliseconds = dateTime.getMilliseconds();
+
+  hours = hours < 10 ? '0' + hours : hours;
+  minutes = minutes < 10 ? '0' + minutes : minutes;
+  seconds = seconds < 10 ? '0' + seconds : seconds;
+
+  if (miliseconds < 10) {
+    miliseconds = "000" + miliseconds;
+  } else if (miliseconds < 100) {
+    miliseconds = "00" + miliseconds;
+  } else if (miliseconds < 1000) {
+    miliseconds = "0" + miliseconds;
+  }
+
+  return hours + ":" + minutes + ":" + seconds + ":" + miliseconds;
+};
 
 
 /* private methods */
@@ -190,7 +233,6 @@ var handleClient = function(clientURL, callback){
           callback(infoForClient);
         }
         else if(room && room.length === 0){ // room is not in db anymore
-        console.log('rooms',rooms);
           infoForClient.success = false;
           infoForClient.error = "room:unknown";
           callback(infoForClient);
