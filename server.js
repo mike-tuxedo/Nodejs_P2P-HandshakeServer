@@ -87,7 +87,7 @@ wss.on('connection', function(ws) {
     });
     
     ws.on('close', function(){ // is called when client disconnected or left chatroom
-      
+      console.log('client is closing');
       productionLogger.log('info', 'client disconnected at: ' + new Date().toString());
       
       var userHashToDelete = null;

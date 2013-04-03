@@ -50,9 +50,6 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
       else{
         socket.send(JSON.stringify({
           subject: 'init',
-          chatroomHash: clientInfo.roomHash, 
-          userHash: clientInfo.userHash, 
-          guestIds: clientInfo.guestIds,
           error: clientInfo.error
         }));
       }
@@ -178,21 +175,33 @@ var handleClient = function(clientURL, callback){
       helperThreads.send({ type: 'search-chatroom', hash: getHashFromClientURL(clientURL, '#/room/') },function(rooms){
         
         var room = null;
-        if(rooms.length == 0)
+        
+        if( typeof rooms === 'undefined' ){
+          console.log('room is not found',rooms);
           return;
-        else
-          room = rooms[0];
-        
-        infoForClient.roomHash = room.hash;
-        
-        infoForClient.userHash = getUniqueUserHash(room);
-        infoForClient.guestIds = room.users;
-        
-        if(infoForClient.guestIds.length >= 6){ // when room has already got 6 people then return error message
-          infoForClient.success = false;
-          infoForClient.error = "chatroom fully occupied";
         }
         else{
+          room = (typeof rooms[0] !== 'undefined') ? rooms[0] : [];
+        }
+        
+        if( room.users && room.users.length >= properties.maxUserNumber ){ // when room has already got 6 people then return error message
+          infoForClient.success = false;
+          infoForClient.error = "room:full";
+          callback(infoForClient);
+        }
+        else if(room && room.length === 0){ // room is not in db anymore
+        console.log('rooms',rooms);
+          infoForClient.success = false;
+          infoForClient.error = "room:unknown";
+          callback(infoForClient);
+        }
+        else{
+          
+          infoForClient.roomHash = room.hash;
+        
+          infoForClient.userHash = getUniqueUserHash(room);
+          infoForClient.guestIds = room.users;
+          
           helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash },function(){
             infoForClient.success = true;
             callback(infoForClient);
