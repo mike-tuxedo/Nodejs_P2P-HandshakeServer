@@ -16,11 +16,18 @@ wss.on('connection', function(ws) {
     
     var timestamp = helpers.formatTime(new Date().getTime());
     
-    if( helpers.isValidOrigin(ws) ){
+    /* client must be connection on right-domain */
+    /* furthermore client must not update side over and over again */
+    if( helpers.isValidOrigin(ws) /*&& !helpers.doesClientIpExist(ws._socket.remoteAddress) */){
       productionLogger.log('info', timestamp + ' client accepted');
     }
     else{
-      productionLogger.error('info', timestamp + ' client not accepted: ' + ws.upgradeReq.headers.origin);
+      if( !helpers.isValidOrigin(ws) ){
+        productionLogger.error('info', timestamp + ' client not accepted: invalid domain ' + ws.upgradeReq.headers.origin);
+      }
+      else{
+        productionLogger.error('info', timestamp + ' client not accepted: ip already exists ' + ws._socket.remoteAddress);
+      }
       return;
     }
     
@@ -95,22 +102,30 @@ wss.on('connection', function(ws) {
       productionLogger.log('info', timestamp + ' client disconnected');
       
       var userHashToDelete = null;
+      
       // delete client form client object
       var tmpClients = {};
       for(var hash in helpers.clients){
-        if(helpers.clients[hash] !== this) // this is a ws-object and so the user that has disconnected or left chatroom
+        if(helpers.clients[hash] !== this){ 
           tmpClients[hash] = helpers.clients[hash];
-        else
+        }
+        else{ // this is a ws-object and so the user that has disconnected or left chatroom
           userHashToDelete = hash;
+        }
       }
+      
       helpers.clients = tmpClients;
       
-      
+      // delete client form db and their ip-address
       if( this['roomHash'] && userHashToDelete ){
         helpers.deleteUserFromDatabase(this['roomHash'], userHashToDelete);
         
         // user might have left chatroom without pressing leave button then inform other chatroom-users as well
         helpers.informOtherClientsOfChatroom(this['roomHash'], userHashToDelete, 'participant-leave');
+        
+        if(this['clientIpAddress']){
+          helpers.delayedIpJob(500,this['clientIpAddress']);
+        }
       }
       
     });

@@ -16,6 +16,8 @@ var productionLogger = require('./logger').production;
 // to associate user-id's with user-connection-sockets
 exports.clients = {};
 
+// to make sure that a client can not update side over and over again
+var clientIps = [];
 
 
 /* public methods */
@@ -25,6 +27,22 @@ exports.isValidOrigin = function(req){ // client must have got a certain domain 
     return true;
   else
     return false;
+};
+
+exports.doesClientIpExist = function(ip){
+  for(var c=0; c < clientIps.length; c++){
+    var clientIp = clientIps[c];
+    if( ip === clientIp ){
+      return true;
+    }
+  }
+  return false;
+};
+
+exports.delayedIpJob = function(time,ip){
+  setTimeout(function(){
+    takeOutIp( ip );
+  },time);
 };
 
 exports.setupNewUser = function(socket,clientUrl){ // user gets handled by whether they are hosts or guests 
@@ -38,7 +56,9 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
       if( clientInfo.success ){ // if true user can build chatroom or enter already created chatroom
         
         socket['roomHash'] = clientInfo.roomHash;
+        socket['clientIpAddress'] = socket._socket.remoteAddress;
         exports.clients[clientInfo.userHash] = socket;
+        clientIps.push(socket._socket.remoteAddress);
         
         if(isSocketConnectionAvailable(socket)){
           socket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
@@ -262,6 +282,12 @@ var handleClient = function(clientURL, callback){
 
 var deleteChatroomFormDatabase = function(roomHash){
   helperThreads.send({ type: 'delete-room', roomHash: roomHash });
+};
+
+var takeOutIp = function(ip){
+  if( clientIps.indexOf(ip) !== -1 ){
+    clientIps.splice(clientIps.indexOf(ip),1);
+  }
 };
 
 var getUniqueRoomHash = function(callback){
