@@ -18,7 +18,7 @@ wss.on('connection', function(ws) {
     
     /* client must be connection on right-domain */
     /* furthermore client must not update side over and over again */
-    if( helpers.isValidOrigin(ws) /*&& !helpers.doesClientIpExist(ws._socket.remoteAddress) */){
+    if( helpers.isValidOrigin(ws) && !helpers.doesClientIpExist(ws._socket.remoteAddress) ){
       productionLogger.log('info', timestamp + ' client accepted');
     }
     else{
@@ -62,70 +62,84 @@ wss.on('connection', function(ws) {
         return;
       }
       
-      switch(message.subject){
-        case 'init': 
-        
-          helpers.setupNewUser(this, message.url); // this is socket that sent an init-message
-          break;
+      try{
+      
+        switch(message.subject){
+          case 'init': 
           
-        case 'sdp':
+            helpers.setupNewUser(this, message.url); // this is socket that sent an init-message
+            break;
+            
+          case 'sdp':
+            
+            helpers.passDescriptionMessagesOnToClient(message);
+            break;
           
-          helpers.passDescriptionMessagesOnToClient(message);
-          break;
-        
-        case 'ice':
+          case 'ice':
+            
+            helpers.passDescriptionMessagesOnToClient(message);
+            break;
+            
+          case 'mail': 
           
-          helpers.passDescriptionMessagesOnToClient(message);
-          break;
+            helpers.passMailInvitationOnToClient(message);
+            break;
+            
+          case 'participant-leave':
           
-        case 'mail': 
-        
-          helpers.passMailInvitationOnToClient(message);
-          break;
+            helpers.informOtherClientsOfChatroom(message.roomHash, message.userHash, 'participant-leave');
+            break;  
+            
+          default:
           
-        case 'participant-leave':
-        
-          helpers.informOtherClientsOfChatroom(message.roomHash, message.userHash, 'participant-leave');
-          break;  
-          
-        default:
-        
-          productionLogger.log('warn', 'message doesn\'t have an allowed subject property:', message);
-      };
+            productionLogger.log('warn', 'message doesn\'t have an allowed subject property:', message);
+        };
+      
+      }
+      catch(e){
+        productionLogger.error('error', timestamp, 'message: ' + message + ' throwed error: ' + e);
+      }
       
     });
     
     ws.on('close', function(){ // is called when client disconnected or left chatroom
       
-      var timestamp = helpers.formatTime(new Date().getTime());
+      try{
       
-      productionLogger.log('info', timestamp + ' client disconnected');
-      
-      var userHashToDelete = null;
-      
-      // delete client form client object
-      var tmpClients = {};
-      for(var hash in helpers.clients){
-        if(helpers.clients[hash] !== this){ 
-          tmpClients[hash] = helpers.clients[hash];
+        var timestamp = helpers.formatTime(new Date().getTime());
+        
+        productionLogger.log('info', timestamp + ' client disconnected');
+        
+        var userHashToDelete = null;
+        
+        // delete client form client object
+        var tmpClients = {};
+        for(var hash in helpers.clients){
+          if(helpers.clients[hash] !== this){ 
+            tmpClients[hash] = helpers.clients[hash];
+          }
+          else{ // this is a ws-object and so the user that has disconnected or left chatroom
+            userHashToDelete = hash;
+          }
         }
-        else{ // this is a ws-object and so the user that has disconnected or left chatroom
-          userHashToDelete = hash;
+        
+        helpers.clients = tmpClients;
+        
+        // delete client form db and their ip-address
+        if( this['roomHash'] && userHashToDelete ){
+          helpers.deleteUserFromDatabase(this['roomHash'], userHashToDelete);
+          
+          // user might have left chatroom without pressing leave button then inform other chatroom-users as well
+          helpers.informOtherClientsOfChatroom(this['roomHash'], userHashToDelete, 'participant-leave');
+          
+          if(this['clientIpAddress']){
+            helpers.delayedIpJob(500,this['clientIpAddress']);
+          }
         }
+      
       }
-      
-      helpers.clients = tmpClients;
-      
-      // delete client form db and their ip-address
-      if( this['roomHash'] && userHashToDelete ){
-        helpers.deleteUserFromDatabase(this['roomHash'], userHashToDelete);
-        
-        // user might have left chatroom without pressing leave button then inform other chatroom-users as well
-        helpers.informOtherClientsOfChatroom(this['roomHash'], userHashToDelete, 'participant-leave');
-        
-        if(this['clientIpAddress']){
-          helpers.delayedIpJob(500,this['clientIpAddress']);
-        }
+      catch(e){
+        productionLogger.error('error', timestamp, 'client disconnected: throwed error: ' + e);
       }
       
     });

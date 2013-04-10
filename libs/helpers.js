@@ -206,76 +206,69 @@ var isSocketConnectionAvailable = function(socket){
 
 var handleClient = function(clientURL, callback){
 
-  try{
+  var infoForClient = {};
+  
+  if( identifyAsHostUrl(clientURL) ){ // is host when url has got this '#/room' at the end
     
-    var infoForClient = {};
-    
-    if( identifyAsHostUrl(clientURL) ){ // is host when url has got this '#/room' at the end
+    getUniqueRoomHash(function(roomHash){
       
-      getUniqueRoomHash(function(roomHash){
+      infoForClient.roomHash = roomHash;
+      
+      infoForClient.userHash = getUniqueUserHash([]);
+      infoForClient.guestIds = [];
+      
+      helperThreads.send({ type: 'insert-room', roomHash: infoForClient.roomHash },function(){
         
-        infoForClient.roomHash = roomHash;
+        helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash },function(){
+          
+          infoForClient.success = true;
+          callback(infoForClient);
         
-        infoForClient.userHash = getUniqueUserHash([]);
-        infoForClient.guestIds = [];
-        
-        helperThreads.send({ type: 'insert-room', roomHash: infoForClient.roomHash },function(){
-          
-          helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash },function(){
-            
-            infoForClient.success = true;
-            callback(infoForClient);
-          
-          });
-          
         });
         
       });
       
-    }
-    else if( getHashFromClientURL(clientURL, '#/room/').length === 40 ){ // is guest with hash that has got 40 signs
-      
-      helperThreads.send({ type: 'search-chatroom', hash: getHashFromClientURL(clientURL, '#/room/') },function(rooms){
-        
-        var room = null;
-        
-        if( typeof rooms === 'undefined' ){
-          console.log('room is not found',rooms);
-          return;
-        }
-        else{
-          room = (typeof rooms[0] !== 'undefined') ? rooms[0] : [];
-        }
-        
-        if( room.users && room.users.length >= properties.maxUserNumber ){ // when room has already got 6 people then return error message
-          infoForClient.success = false;
-          infoForClient.error = "room:full";
-          callback(infoForClient);
-        }
-        else if(room && room.length === 0){ // room is not in db anymore
-          infoForClient.success = false;
-          infoForClient.error = "room:unknown";
-          callback(infoForClient);
-        }
-        else{
-          
-          infoForClient.roomHash = room.hash;
-        
-          infoForClient.userHash = getUniqueUserHash(room);
-          infoForClient.guestIds = room.users;
-          
-          helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash },function(){
-            infoForClient.success = true;
-            callback(infoForClient);
-          });
-        }
-        
-      });      
-    }
+    });
     
   }
-  catch(e){
-    console.log('error happend:',e);
+  else if( getHashFromClientURL(clientURL, '#/room/').length === 40 ){ // is guest with hash that has got 40 signs
+    
+    helperThreads.send({ type: 'search-chatroom', hash: getHashFromClientURL(clientURL, '#/room/') },function(rooms){
+      
+      var room = null;
+      
+      if( typeof rooms === 'undefined' ){
+        console.log('room is not found',rooms);
+        return;
+      }
+      else{
+        room = (typeof rooms[0] !== 'undefined') ? rooms[0] : [];
+      }
+      
+      if( room.users && room.users.length >= properties.maxUserNumber ){ // when room has already got 6 people then return error message
+        infoForClient.success = false;
+        infoForClient.error = "room:full";
+        callback(infoForClient);
+      }
+      else if(room && room.length === 0){ // room is not in db anymore
+        infoForClient.success = false;
+        infoForClient.error = "room:unknown";
+        callback(infoForClient);
+      }
+      else{
+        
+        infoForClient.roomHash = room.hash;
+      
+        infoForClient.userHash = getUniqueUserHash(room);
+        infoForClient.guestIds = room.users;
+        
+        helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash },function(){
+          infoForClient.success = true;
+          callback(infoForClient);
+        });
+      }
+      
+    });      
   }
   
 };
@@ -293,18 +286,18 @@ var takeOutIp = function(ip){
 var getUniqueRoomHash = function(callback){
   var hash = null;
   
-  var retryToGetHash = function(){
+  var tryToGetHash = function(){
   
     hash = createHash();
     helperThreads.send({ type: 'search-chatroom', hash: hash },function(rooms){
       if(rooms && rooms.length == 0) // there is no chatroom with recently calculated hash
         callback(hash);
       else
-        retryToGetHash();
+        tryToGetHash();
     });
     
   };
-  retryToGetHash();
+  tryToGetHash();
   
 };
 
