@@ -11,7 +11,7 @@ var properties = require('./../properties');
 var helperThreads = require("backgrounder").spawn(__dirname + "/helper_thread.js"); // , { "children-count" : 5 }
 
 // logging all send activities
-var productionLogger = require('./logger').production;
+var logger = require('./logger');
 
 // to associate user-id's with user-connection-sockets
 exports.clients = {};
@@ -30,9 +30,14 @@ exports.isValidOrigin = function(req){ // client must have got a certain domain 
 };
 
 exports.doesClientIpExist = function(ip){
+
+  if( !properties.isProduction ){ // development-mode
+    return false;
+  }
+  
   for(var c=0; c < clientIps.length; c++){
     var clientIp = clientIps[c];
-    if( ip === clientIp ){
+    if( ip === clientIp && properties.allowedIpAddresses.indexOf(ip) === -1 ){
       return true;
     }
   }
@@ -69,7 +74,7 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
           }));
         }
         
-        productionLogger.log('info', timestamp + ' send init');
+        logger.log('info', timestamp + ' send init');
         
         exports.informOtherClientsOfChatroom(clientInfo.roomHash, clientInfo.userHash, 'participant-join');
 
@@ -80,7 +85,7 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
           error: clientInfo.error
         }));
         
-        productionLogger.error('error', timestamp + ' room error ' + clientInfo.error);
+        logger.error('error', timestamp + ' room error ' + clientInfo.error);
       }
     }
   );
@@ -112,7 +117,7 @@ exports.passDescriptionMessagesOnToClient = function(message){
           
         socket.send(JSON.stringify(msg));
         
-        productionLogger.log('info', timestamp + (' send ' + (message.sdp ? 'sdp' : 'ice')) );
+        logger.log('info', timestamp + (' send ' + (message.sdp ? 'sdp' : 'ice')) );
       }
     }
   );
@@ -135,7 +140,7 @@ exports.passMailInvitationOnToClient = function(message){
           text: message.text, 
           html: message.html 
         });
-        productionLogger.log('info', timestamp + ' send mail');
+        logger.log('info', timestamp + ' send mail');
       }
     }
   );
@@ -164,7 +169,7 @@ exports.informOtherClientsOfChatroom = function(roomHash, userHash, subject){
       }
       
       if(users.length > 1){
-        productionLogger.log('info', timestamp + (' send participant ' + subject) );
+        logger.log('info', timestamp + (' send participant ' + subject) );
       }
     }
   );
@@ -245,7 +250,9 @@ var handleClient = function(clientURL, callback){
         room = (typeof rooms[0] !== 'undefined') ? rooms[0] : [];
       }
       
-      if( room.users && room.users.length >= properties.maxUserNumber ){ // when room has already got 6 people then return error message
+      // when room has already got {maxUserNumber}-people then return error message: room:full
+      // in development-mode {maxUserNumber}-people is omitted
+      if( room.users && room.users.length >= properties.maxUserNumber && properties.isProduction ){ 
         infoForClient.success = false;
         infoForClient.error = "room:full";
         callback(infoForClient);

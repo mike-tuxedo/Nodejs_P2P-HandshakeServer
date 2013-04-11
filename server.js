@@ -9,7 +9,7 @@ var wss = new WebSocketServer({ port: properties.serverPort });
 var helpers = require('./libs/helpers');
 
 // logging all server activities
-var productionLogger = require('./libs/logger').production;
+var logger = require('./libs/logger');
 
 
 wss.on('connection', function(ws) {
@@ -19,14 +19,14 @@ wss.on('connection', function(ws) {
     /* client must be connection on right-domain */
     /* furthermore client must not update side over and over again */
     if( helpers.isValidOrigin(ws) && !helpers.doesClientIpExist(ws._socket.remoteAddress) ){
-      productionLogger.log('info', timestamp + ' client accepted');
+      logger.log('info', timestamp + ' client accepted');
     }
     else{
       if( !helpers.isValidOrigin(ws) ){
-        productionLogger.error('info', timestamp + ' client not accepted: invalid domain ' + ws.upgradeReq.headers.origin);
+        logger.error('info', timestamp + ' client not accepted: invalid domain ' + ws.upgradeReq.headers.origin);
       }
       else{
-        productionLogger.error('info', timestamp + ' client not accepted: ip already exists ' + ws._socket.remoteAddress);
+        logger.error('info', timestamp + ' client not accepted: ip already exists ' + ws._socket.remoteAddress);
       }
       return;
     }
@@ -55,10 +55,10 @@ wss.on('connection', function(ws) {
       
       try{
         message = JSON.parse(message);
-        productionLogger.log('info', timestamp, ('got ' + message.subject));
+        logger.log('info', timestamp + ' got ' + message.subject);
       }
       catch(e){
-        productionLogger.error('info', timestamp, 'message is non-JSON');
+        logger.error('info', timestamp + ' message is non-JSON');
         return;
       }
       
@@ -92,12 +92,12 @@ wss.on('connection', function(ws) {
             
           default:
           
-            productionLogger.log('warn', 'message doesn\'t have an allowed subject property:', message);
+            logger.log('warn', timestamp + ' message doesn\'t have an allowed subject property: ' + message);
         };
       
       }
       catch(e){
-        productionLogger.error('error', timestamp, 'message: ' + message + ' throwed error: ' + e);
+        logger.error('error', timestamp + ' message: ' + message + ' throwed error: ' + e);
       }
       
     });
@@ -108,7 +108,7 @@ wss.on('connection', function(ws) {
       
         var timestamp = helpers.formatTime(new Date().getTime());
         
-        productionLogger.log('info', timestamp + ' client disconnected');
+        logger.log('info', timestamp + ' client disconnected');
         
         var userHashToDelete = null;
         
@@ -139,7 +139,7 @@ wss.on('connection', function(ws) {
       
       }
       catch(e){
-        productionLogger.error('error', timestamp, 'client disconnected: throwed error: ' + e);
+        logger.error('error', timestamp + ' while client disconnected: throwed error: ' + e);
       }
       
     });
@@ -147,5 +147,5 @@ wss.on('connection', function(ws) {
 
 wss.on('error', function(error) {
   var timestamp = helpers.formatTime(new Date().getTime());
-  productionLogger.error('error', timestamp + ' server error ' + error);
+  logger.error('error', timestamp + ' server error ' + error);
 });
