@@ -23,10 +23,13 @@ var clientIps = [];
 /* public methods */
 
 exports.isValidOrigin = function(req){ // client must have got a certain domain in order to proceed
-  if(req.upgradeReq.headers.origin === properties.clientBrowserLocation)
+  var clientDomain = req.upgradeReq.headers.origin;
+  if( properties.allowedURLDomains.indexOf(clientDomain) !== -1 ){
     return true;
-  else
+  }
+  else{
     return false;
+  }
 };
 
 exports.doesClientIpExist = function(ip){
@@ -37,7 +40,7 @@ exports.doesClientIpExist = function(ip){
   
   for(var c=0; c < clientIps.length; c++){
     var clientIp = clientIps[c];
-    if( ip === clientIp && properties.allowedIpAddresses.indexOf(ip) === -1 ){
+    if( ip === clientIp ){
       return true;
     }
   }
