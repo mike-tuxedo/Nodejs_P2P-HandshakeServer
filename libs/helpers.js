@@ -16,13 +16,18 @@ var logger = require('./logger');
 // to associate user-id's with user-connection-sockets
 exports.clients = {};
 
-// to make sure that a client can not update side over and over again
+// to make sure that a client can not update side repeatedly
 var clientIps = [];
 
 
 /* public methods */
 
 exports.isValidOrigin = function(req){ // client must have got a certain domain in order to proceed
+  
+  if( !properties.productionMode ){ // development-mode
+    return true;
+  }
+  
   var clientDomain = req.upgradeReq.headers.origin;
   if( properties.allowedURLDomains.indexOf(clientDomain) !== -1 ){
     return true;
@@ -34,7 +39,7 @@ exports.isValidOrigin = function(req){ // client must have got a certain domain 
 
 exports.doesClientIpExist = function(ip){
 
-  if( !properties.isProduction ){ // development-mode
+  if( !properties.productionMode ){ // development-mode
     return false;
   }
   
@@ -53,7 +58,7 @@ exports.delayedIpJob = function(time,ip){
   },time);
 };
 
-exports.setupNewUser = function(socket,clientUrl){ // user gets handled by whether they are hosts or guests 
+exports.setupClient = function(socket,clientUrl){ // user gets handled by whether they are hosts or guests 
  
   handleClient(
     clientUrl, 
@@ -61,12 +66,13 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
       
       var timestamp = exports.formatTime(new Date().getTime());
       
-      if( clientInfo.success ){ // if true user can build chatroom or enter already created chatroom
+      if( clientInfo.success ){ // true when user has created chatroom or enter already created chatroom
         
+        socket['accepted'] = true;
         socket['roomHash'] = clientInfo.roomHash;
         socket['clientIpAddress'] = socket._socket.remoteAddress;
-        exports.clients[clientInfo.userHash] = socket;
-        clientIps.push(socket._socket.remoteAddress);
+        exports.clients[clientInfo.userHash] = socket; // hold clients via hash value keys
+        clientIps.push(socket._socket.remoteAddress); // remember ip-address so that user can not update side repeatedly
         
         if(isSocketConnectionAvailable(socket)){
           socket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
@@ -82,13 +88,13 @@ exports.setupNewUser = function(socket,clientUrl){ // user gets handled by wheth
         exports.informOtherClientsOfChatroom(clientInfo.roomHash, clientInfo.userHash, 'participant-join');
 
       }
-      else{
+      else{ // there was an error 
         socket.send(JSON.stringify({
           subject: 'init',
           error: clientInfo.error
         }));
-        
-        logger.error('error', timestamp + ' room error ' + clientInfo.error);
+        logger.error('warn', timestamp + ' room error ' + clientInfo.error);
+        logger.error('warn', timestamp + ' send error');
       }
     }
   );
@@ -132,16 +138,17 @@ exports.passMailInvitationOnToClient = function(message){
   helperThreads.send(
     { type: 'search-chatroom', hash: message.chatroomHash },
     function(rooms){ // check whether chatroomHash and User-ID exist 
+    
       var room = rooms[0];
       var timestamp = exports.formatTime(new Date().getTime());
       
-      if( room && room.hash == message.chatroomHash && getObject(room.users, { id: message.userHash }) ){
+      if( room && getObject(room.users, { id: message.userHash }) ){
         invitationMailer.sendMail({ 
-          from: message.from, 
-          to: message.to, 
-          subject: message.subject, 
-          text: message.text, 
-          html: message.html 
+          from: message.mail.from, 
+          to: message.mail.to, 
+          subject: message.mail.subject, 
+          text: message.mail.text, 
+          html: message.mail.html 
         });
         logger.log('info', timestamp + ' send mail');
       }
@@ -150,7 +157,33 @@ exports.passMailInvitationOnToClient = function(message){
 
 };
 
-// inform other clients that a new user has entered chatroom
+exports.passKickMessagesOnToClient = function(message,hostIp){
+  
+  helperThreads.send(
+    { type: 'search-chatroom', hash: message.chatroomHash },
+    function(rooms){ // check whether chatroomHash and User-ID exist 
+      
+      var room = rooms[0];
+      var timestamp = exports.formatTime(new Date().getTime());
+      var hostSocket = exports.clients[room.users[0].id]; // first element is always host
+      var kickedSocket = exports.clients[message.destinationHash];
+      
+      if( isSocketConnectionAvailable(kickedSocket) && doesArrayHashContain(room.users, message.userHash) && hostSocket['clientIpAddress'] === hostIp ){
+        
+        kickedSocket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
+          subject: 'kicked',
+          chatroomHash: clientInfo.roomHash, 
+          userHash: clientInfo.userHash
+        }));
+          
+        logger.log('info', timestamp + ' send kick');
+      }
+    }
+  );
+  
+};
+
+// inform other clients that a new user has entered or left chatroom
 exports.informOtherClientsOfChatroom = function(roomHash, userHash, subject){ 
   helperThreads.send(
     { type: 'get-users', roomHash: roomHash }, 
@@ -214,73 +247,94 @@ var isSocketConnectionAvailable = function(socket){
 
 var handleClient = function(clientURL, callback){
 
+  if( identifyAsHostUrl(clientURL) ){ // is host
+    handleHost(clientURL, callback);
+  }
+  else if( getHashFromClientURL(clientURL, '/room/').length === 40 ){ // is guest
+    handleGuest(clientURL, callback);
+  }
+  else{ // is neither host nor guest so inform client about that
+    handleOutsider(callback);
+  }
+  
+};
+
+var handleHost = function(clientURL, callback){
+  
   var infoForClient = {};
   
-  if( identifyAsHostUrl(clientURL) ){ // is host when url has got this '#/room' at the end
+  getUniqueRoomHash(function(roomHash){
+      
+    infoForClient.roomHash = roomHash;
     
-    getUniqueRoomHash(function(roomHash){
+    infoForClient.userHash = getUniqueUserHash([]);
+    infoForClient.guestIds = [];
+    
+    helperThreads.send({ type: 'insert-room', roomHash: infoForClient.roomHash },function(){
       
-      infoForClient.roomHash = roomHash;
+      helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash },function(){
+        
+        infoForClient.success = true;
+        callback(infoForClient);
       
-      infoForClient.userHash = getUniqueUserHash([]);
-      infoForClient.guestIds = [];
-      
-      helperThreads.send({ type: 'insert-room', roomHash: infoForClient.roomHash },function(){
-        
-        helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash },function(){
-          
-          infoForClient.success = true;
-          callback(infoForClient);
-        
-        });
-        
       });
       
     });
     
-  }
-  else if( getHashFromClientURL(clientURL, '#/room/').length === 40 ){ // is guest with hash that has got 40 signs
-    
-    helperThreads.send({ type: 'search-chatroom', hash: getHashFromClientURL(clientURL, '#/room/') },function(rooms){
-      
-      var room = null;
-      
-      if( typeof rooms === 'undefined' ){
-        console.log('room is not found',rooms);
-        return;
-      }
-      else{
-        room = (typeof rooms[0] !== 'undefined') ? rooms[0] : [];
-      }
-      
-      // when room has already got {maxUserNumber}-people then return error message: room:full
-      // in development-mode {maxUserNumber}-people is omitted
-      if( room.users && room.users.length >= properties.maxUserNumber && properties.isProduction ){ 
-        infoForClient.success = false;
-        infoForClient.error = "room:full";
-        callback(infoForClient);
-      }
-      else if(room && room.length === 0){ // room is not in db anymore
-        infoForClient.success = false;
-        infoForClient.error = "room:unknown";
-        callback(infoForClient);
-      }
-      else{
-        
-        infoForClient.roomHash = room.hash;
-      
-        infoForClient.userHash = getUniqueUserHash(room);
-        infoForClient.guestIds = room.users;
-        
-        helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash },function(){
-          infoForClient.success = true;
-          callback(infoForClient);
-        });
-      }
-      
-    });      
-  }
+  });
   
+};
+
+var handleGuest = function(clientURL, callback){
+  
+  var infoForClient = {};
+  
+  helperThreads.send({ type: 'search-chatroom', hash: getHashFromClientURL(clientURL, '#/room/') },function(rooms){
+      
+    var room = null;
+    
+    if( typeof rooms === 'undefined' ){
+      logger.log('warn', timestamp + ' room is not found');
+      return;
+    }
+    else{
+      room = (typeof rooms[0] !== 'undefined') ? rooms[0] : [];
+    }
+    
+    // when room has already got {maxUserNumber}-people then return error message: room:full
+    // in development-mode {maxUserNumber}-people is omitted
+    if( room.users && room.users.length >= properties.maxUserNumber && properties.productionMode ){ 
+      infoForClient.success = false;
+      infoForClient.error = "room:full";
+      callback(infoForClient);
+    }
+    else if(room && room.length === 0){ // room is not in db anymore
+      infoForClient.success = false;
+      infoForClient.error = "room:unknown";
+      callback(infoForClient);
+    }
+    else{
+      
+      infoForClient.roomHash = room.hash;
+    
+      infoForClient.userHash = getUniqueUserHash(room);
+      infoForClient.guestIds = room.users;
+      
+      helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash },function(){
+        infoForClient.success = true;
+        callback(infoForClient);
+      });
+    }
+    
+  });
+  
+};
+
+var handleOutsider = function(callback){
+  var infoForClient = {};
+  infoForClient.success = false;
+  infoForClient.error = "room:unknown";
+  callback(infoForClient);
 };
 
 var deleteChatroomFormDatabase = function(roomHash){
@@ -343,7 +397,12 @@ var getHashFromClientURL = function(url, signToStartAt){
 };
 
 var identifyAsHostUrl = function(url){
-  return url.slice(url.length-6,url.length) === '#/room';
+  var lastSigns = '/rooms';
+  return url.slice(url.length-lastSigns.length,url.length) === lastSigns;
+};
+
+var doesArrayHashContain = function(array,hash){
+  return getObject(array, { id: hash });
 };
 
 // searches in originalObject that must be an Object
@@ -351,7 +410,7 @@ var identifyAsHostUrl = function(url){
 var getObject = function(originalObject, searchObject){
   for(var prop in originalObject){
     for(var innerProp in originalObject[prop])
-        if(originalObject[prop][innerProp] == searchObject[innerProp])
+        if(originalObject[prop][innerProp] === searchObject[innerProp])
             return originalObject[prop];
   }
   return null;

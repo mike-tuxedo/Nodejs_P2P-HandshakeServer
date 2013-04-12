@@ -35,10 +35,12 @@ wss.on('connection', function(ws) {
     /* message-kinds (from client to server): */
     //// register (new User or Guest) -> { subject: 'init', url: 'www.example.at/#...' }
     //// spd/ice -> { subject: 'sdp/ice', chatroomHash: '...', userHash: '...', destinationHash: '...', spd or ice: Object }
+    //// take guest out -> { subject: 'participant-kick', chatroomHash: '...', userHash: '...', destinationHash: '...' }
     
     /* message-kinds (from server to client): */
     //// register (new User or Guest) error-property is optional -> { subject: 'init', chatroomHash: '...', userHash: '...', guestIds: [{id '...'},...], error: '...' }
     //// spd/ice -> { subject: 'sdp/ice', chatroomHash: '...', userHash: '...', spd or ice: Object }
+    //// take guest out -> { subject: 'kicked', chatroomHash: '...', userHash: '...' }
     
     /* information-kinds: */
     // new user: { subject: 'participant-join', chatroomHash: '...', userHash: '...' }
@@ -67,7 +69,7 @@ wss.on('connection', function(ws) {
         switch(message.subject){
           case 'init': 
           
-            helpers.setupNewUser(this, message.url); // this is socket that sent an init-message
+            helpers.setupClient(this, message.url); // this is socket that sent an init-message
             break;
             
           case 'sdp':
@@ -84,11 +86,17 @@ wss.on('connection', function(ws) {
           
             helpers.passMailInvitationOnToClient(message);
             break;
+          
+          case 'participant-kick':
             
+            helpers.passKickMessagesOnToClient(message,this['clientIpAddress']);
+            helpers.informOtherClientsOfChatroom(message.roomHash, message.destinationHash, 'participant-leave');
+            break;
+          
           case 'participant-leave':
           
             helpers.informOtherClientsOfChatroom(message.roomHash, message.userHash, 'participant-leave');
-            break;  
+            break;
             
           default:
           
@@ -110,31 +118,35 @@ wss.on('connection', function(ws) {
         
         logger.log('info', timestamp + ' client disconnected');
         
-        var userHashToDelete = null;
+        if(this['accepted']){ // client must be accepted host or guest
         
-        // delete client form client object
-        var tmpClients = {};
-        for(var hash in helpers.clients){
-          if(helpers.clients[hash] !== this){ 
-            tmpClients[hash] = helpers.clients[hash];
-          }
-          else{ // this is a ws-object and so the user that has disconnected or left chatroom
-            userHashToDelete = hash;
-          }
-        }
-        
-        helpers.clients = tmpClients;
-        
-        // delete client form db and their ip-address
-        if( this['roomHash'] && userHashToDelete ){
-          helpers.deleteUserFromDatabase(this['roomHash'], userHashToDelete);
+          var userHashToDelete = null;
           
-          // user might have left chatroom without pressing leave button then inform other chatroom-users as well
-          helpers.informOtherClientsOfChatroom(this['roomHash'], userHashToDelete, 'participant-leave');
-          
-          if(this['clientIpAddress']){
-            helpers.delayedIpJob(500,this['clientIpAddress']);
+          // delete client form client object
+          var tmpClients = {};
+          for(var hash in helpers.clients){
+            if(helpers.clients[hash] !== this){ 
+              tmpClients[hash] = helpers.clients[hash];
+            }
+            else{ // this is a ws-object and so the user that has disconnected or left chatroom
+              userHashToDelete = hash;
+            }
           }
+          
+          helpers.clients = tmpClients;
+          
+          // delete client form db and their ip-address
+          if( this['roomHash'] && userHashToDelete ){
+            helpers.deleteUserFromDatabase(this['roomHash'], userHashToDelete);
+            
+            // user might have left chatroom without pressing leave button then inform other chatroom-users as well
+            helpers.informOtherClientsOfChatroom(this['roomHash'], userHashToDelete, 'participant-leave');
+            
+            if(this['clientIpAddress']){
+              helpers.delayedIpJob(500,this['clientIpAddress']);
+            }
+          }
+          
         }
       
       }
@@ -147,5 +159,5 @@ wss.on('connection', function(ws) {
 
 wss.on('error', function(error) {
   var timestamp = helpers.formatTime(new Date().getTime());
-  logger.error('error', timestamp + ' server error ' + error);
+  logger.error('error', timestamp + ' server ' + error);
 });

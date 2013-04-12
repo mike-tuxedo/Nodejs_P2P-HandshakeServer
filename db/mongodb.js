@@ -9,21 +9,21 @@ exports.searchForChatroomEntry = function(condition,callback) {
   }
   
   mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
-    if (err) {
-      console.log('error happend while searching chatroom in db: ',err);
+    if(err){
+      throw new Error('mongodb searchForChatroomEntry: error happend while searching for chatroom in db: ' + err);
       return;
     }
 
     db.collection('rooms', function(err, collection) {
       
-      if (err) {
-        console.log(err);
+      if(err){
+        throw new Error('mongodb searchForChatroomEntry: error happend while searching for chatroom in db: ' + err);
         return;
       }
 
       collection.find(condition).toArray(function(err, items) {
-        if (err) {
-          console.log(err);
+        if(err){
+          throw new Error('mongodb searchForChatroomEntry: error happend while searching for chatroom in db: ' + err);
           return;
         }
         
@@ -49,8 +49,8 @@ exports.insertRoom = function(roomHash, oldUsers, callback) {
 
   mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
     
-    if (err) {
-      console.log('error happend while inserting chatroom into db: ',e);
+    if(err){
+      throw new Error('mongodb insertRoom: error happend while inserting room into db: ' + err);
       return;
     }
 
@@ -102,8 +102,8 @@ exports.deleteRoom  = function(roomHash,callback){
 
   mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
     
-    if (err) {
-      console.log('error happend while inserting chatroom into db: ',e);
+    if(err){
+      throw new Error('mongodb deleteRoom: error happend while deleting room from db: ' + err);
       return;
     }
 
@@ -137,7 +137,7 @@ exports.insertUser = function(roomHash, userId, callback) {
   mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
     
     if (err) {
-      console.log('error happend while inserting user into chatroom: ',err);
+      throw new Error('mongodb insertUser: error happend while inserting user into db: ' + err);
       return;
     }
     
@@ -159,8 +159,8 @@ exports.insertUser = function(roomHash, userId, callback) {
           { hash: roomHash, users: _users }, 
           { w: 1 }, 
           function(err, result) {
-            if (err) {
-              console.log(err);
+            if(err){
+              throw new Error('mongodb insertUser: error happend while inserting user into db: ' + err);
               return;
             }
           }
@@ -189,7 +189,7 @@ exports.deleteUserFromChatroom = function(roomHash, userId, callback){
   exports.searchForChatroomEntry({ hash: roomHash },function(rooms){
     
     if (!rooms) {
-      console.log('error happened while deleting user from chatroom: ',room);
+      throw new Error('mongodb deleteUserFromChatroom: error happend while deleting user from db');
       return;
     }
     
