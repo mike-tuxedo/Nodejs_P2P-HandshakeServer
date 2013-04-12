@@ -1,5 +1,6 @@
 ﻿var nodemailer = require("nodemailer");
 var properties = require('./../properties');
+var logger = require('./logger');
 
 // smtp-server that takes care for the transport
 var smtpTransport = nodemailer.createTransport("SMTP",{
@@ -28,11 +29,12 @@ exports.sendMail = function(mailOptions){
     var timestamp = formatTime(new Date().getTime());
     
     if(error){
-      console.error('error', timestamp + ' error while sending mail: ' + error );
+      logger.error('error', timestamp + ' error while sending mail: ' + error );
     }
     else{
-      console.log('info', timestamp + ' mail sent successfully: response: ');
+      logger.log('info', timestamp + ' mail sent successfully');
     }
+    
   });
 
 };
