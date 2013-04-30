@@ -24,13 +24,13 @@ var clientIps = [];
 
 exports.isValidOrigin = function(req){ // client must have got a certain domain in order to proceed
   
-  if( !properties.productionMode ){ // development-mode
+  if( !properties.productionMode ){ // activated in development-mode
     return true;
   }
   
   var clientDomain = req.upgradeReq.headers.origin;
-  if( properties.allowedURLDomains.indexOf(clientDomain) !== -1 ){
-    return true;
+  if(properties.allowedURLDomains.indexOf(clientDomain) !== -1){
+    return true; 
   }
   else{
     return false;
@@ -39,22 +39,23 @@ exports.isValidOrigin = function(req){ // client must have got a certain domain 
 
 exports.doesClientIpExist = function(ip){
 
-  if( !properties.productionMode ){ // development-mode
+  if( !properties.productionMode ){ // activated in development-mode
     return false;
   }
   
-  for(var c=0; c < clientIps.length; c++){
-    var clientIp = clientIps[c];
-    if( ip === clientIp ){
-      return true;
-    }
+  if(clientIps.indexOf(ip) !== -1){
+    return true;
   }
-  return false;
+  else{
+    return false;
+  }
 };
 
-exports.delayedIpJob = function(time,ip){
+exports.delayedIpJob = function(ip,time){
   setTimeout(function(){
-    takeOutIp( ip );
+    if(ip){
+      takeOutIp( ip );
+    }
   },time);
 };
 
@@ -70,14 +71,16 @@ exports.setupClient = function(socket,clientUrl){ // user gets handled by whethe
         
         socket['accepted'] = true;
         socket['roomHash'] = clientInfo.roomHash;
+        socket['userHash'] = clientInfo.userHash;
         socket['clientIpAddress'] = socket._socket.remoteAddress;
+        
         exports.clients[clientInfo.userHash] = socket; // hold clients via hash value keys
         clientIps.push(socket._socket.remoteAddress); // remember ip-address so that user can not update side repeatedly
         
         if(isSocketConnectionAvailable(socket)){
           socket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
             subject: 'init',
-            chatroomHash: clientInfo.roomHash, 
+            roomHash: clientInfo.roomHash, 
             userHash: clientInfo.userHash, 
             guestIds: clientInfo.guestIds 
           }));
@@ -85,7 +88,7 @@ exports.setupClient = function(socket,clientUrl){ // user gets handled by whethe
         
         logger.log('info', timestamp + ' send init');
         
-        exports.informOtherClientsOfChatroom(clientInfo.roomHash, clientInfo.userHash, 'participant-join');
+        exports.informOtherClientsOfChatroom(clientInfo.roomHash, clientInfo.userHash, 'participant:join');
 
       }
       else{ // there was an error 
@@ -104,18 +107,18 @@ exports.setupClient = function(socket,clientUrl){ // user gets handled by whethe
 exports.passDescriptionMessagesOnToClient = function(message){
 
   helperThreads.send(
-    { type: 'search-chatroom', hash: message.chatroomHash },
-    function(rooms){ // check whether chatroomHash and User-ID's exist 
+    { type: 'search-chatroom', hash: message.roomHash },
+    function(rooms){ // check whether roomHash and User-ID's exist 
       
       var room = rooms[0];
       var socket = exports.clients[message.destinationHash];
       var timestamp = exports.formatTime(new Date().getTime());
       
-      if( isSocketConnectionAvailable( socket ) && getObject(room.users, { id: message.userHash }) && getObject(room.users, { id: message.destinationHash }) ){
+      if( isSocketConnectionAvailable( socket ) && room && getObject(room.users, { id: message.userHash }) && getObject(room.users, { id: message.destinationHash }) ){
         
         var msg = {
           subject: (message.sdp ? 'sdp' : 'ice'),
-          chatroomHash: message.chatroomHash, 
+          roomHash: message.roomHash, 
           userHash: message.userHash
         };
         
@@ -136,8 +139,8 @@ exports.passDescriptionMessagesOnToClient = function(message){
 exports.passMailInvitationOnToClient = function(message){
   
   helperThreads.send(
-    { type: 'search-chatroom', hash: message.chatroomHash },
-    function(rooms){ // check whether chatroomHash and User-ID exist 
+    { type: 'search-chatroom', hash: message.roomHash },
+    function(rooms){ // check whether roomHash and User-ID exist 
     
       var room = rooms[0];
       var timestamp = exports.formatTime(new Date().getTime());
@@ -150,18 +153,44 @@ exports.passMailInvitationOnToClient = function(message){
           text: message.mail.text, 
           html: message.mail.html 
         });
-        logger.log('info', timestamp + ' send mail');
+        logger.log('info', timestamp + ' send '+message.subject);
       }
     }
   );
 
 };
 
+exports.passPhotoOnToClient = function(message){
+
+  helperThreads.send(
+    { type: 'search-chatroom', hash: message.roomHash },
+    function(rooms){ // check whether roomHash
+    
+      var room = rooms[0];
+      var timestamp = exports.formatTime(new Date().getTime());
+      var socket = exports.clients[message.destinationHash];
+      
+      if( isSocketConnectionAvailable(socket) && doesArrayHashContain(room.users, message.userHash) ){
+        
+        socket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
+          subject: 'participant:photo',
+          roomHash: message.roomHash, 
+          userHash: message.userHash,
+          photoData: message.photoData
+        }));
+        
+        logger.log('info', timestamp + ' send participant:photo');
+      }
+      
+  });
+  
+};
+
 exports.passKickMessagesOnToClient = function(message,hostIp){
   
   helperThreads.send(
-    { type: 'search-chatroom', hash: message.chatroomHash },
-    function(rooms){ // check whether chatroomHash and User-ID exist 
+    { type: 'search-chatroom', hash: message.roomHash },
+    function(rooms){ // check whether roomHash
       
       var room = rooms[0];
       var timestamp = exports.formatTime(new Date().getTime());
@@ -171,12 +200,12 @@ exports.passKickMessagesOnToClient = function(message,hostIp){
       if( isSocketConnectionAvailable(kickedSocket) && doesArrayHashContain(room.users, message.userHash) && hostSocket['clientIpAddress'] === hostIp ){
         
         kickedSocket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
-          subject: 'kicked',
-          chatroomHash: clientInfo.roomHash, 
-          userHash: clientInfo.userHash
+          subject: 'close',
+          roomHash: message.roomHash, 
+          userHash: message.userHash
         }));
           
-        logger.log('info', timestamp + ' send kick');
+        logger.log('info', timestamp + ' send close');
       }
     }
   );
@@ -196,11 +225,13 @@ exports.informOtherClientsOfChatroom = function(roomHash, userHash, subject){
         var userId = users[u].id;
         
         if( userId != userHash && isSocketConnectionAvailable( exports.clients[userId] ) ){ // socket must be open to receive message
+          
           exports.clients[userId].send(JSON.stringify({
-            subject: subject, 
-            chatroomHash: roomHash, 
-            userHash: userHash
+            subject : subject,
+            roomHash : roomHash,
+            userHash : userHash
           }));
+          
         }
       }
       
@@ -212,7 +243,9 @@ exports.informOtherClientsOfChatroom = function(roomHash, userHash, subject){
 };
 
 exports.deleteUserFromDatabase = function(roomHash, userHash){
-  helperThreads.send({ type: 'delete-users', roomHash: roomHash, userHash: userHash });
+  if(roomHash && userHash){
+    helperThreads.send({ type: 'delete-users', roomHash: roomHash, userHash: userHash });
+  }
 };
 
 
@@ -246,7 +279,7 @@ var isSocketConnectionAvailable = function(socket){
 };
 
 var handleClient = function(clientURL, callback){
-
+  
   if( identifyAsHostUrl(clientURL) ){ // is host
     handleHost(clientURL, callback);
   }
@@ -289,7 +322,7 @@ var handleGuest = function(clientURL, callback){
   
   var infoForClient = {};
   
-  helperThreads.send({ type: 'search-chatroom', hash: getHashFromClientURL(clientURL, '#/room/') },function(rooms){
+  helperThreads.send({ type: 'search-chatroom', hash: getHashFromClientURL(clientURL, '/room/') },function(rooms){
       
     var room = null;
     

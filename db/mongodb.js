@@ -4,7 +4,7 @@ var properties = require('./../properties');
 
 exports.searchForChatroomEntry = function(condition,callback) {
   
-  if (typeof condition !== 'object' || !callback) {
+  if(!condition && !callback) {
     return null;
   }
   
