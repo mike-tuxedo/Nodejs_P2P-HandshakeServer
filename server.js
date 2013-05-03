@@ -88,7 +88,7 @@ wss.on('connection', function(ws) {
             
           case 'mail': 
           
-            helpers.passMailInvitationOnToClient(message);
+            helpers.passMailInvitationOnToClient(message,this);
             break;
           
           case 'participant:photo': 

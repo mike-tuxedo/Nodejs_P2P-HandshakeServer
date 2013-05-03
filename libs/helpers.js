@@ -73,6 +73,7 @@ exports.setupClient = function(socket,clientUrl){ // user gets handled by whethe
         socket['roomHash'] = clientInfo.roomHash;
         socket['userHash'] = clientInfo.userHash;
         socket['clientIpAddress'] = socket._socket.remoteAddress;
+        socket['mailSent'] = 0;
         
         exports.clients[clientInfo.userHash] = socket; // hold clients via hash value keys
         clientIps.push(socket._socket.remoteAddress); // remember ip-address so that user can not update side repeatedly
@@ -136,7 +137,7 @@ exports.passDescriptionMessagesOnToClient = function(message){
   
 };
 
-exports.passMailInvitationOnToClient = function(message){
+exports.passMailInvitationOnToClient = function(message,socket){
   
   helperThreads.send(
     { type: 'search-chatroom', hash: message.roomHash },
@@ -144,8 +145,12 @@ exports.passMailInvitationOnToClient = function(message){
     
       var room = rooms[0];
       var timestamp = exports.formatTime(new Date().getTime());
+      var maxNumberOfMails = properties.maxUserNumber + 4; // client can only sent as much as there are users in a chatroom plus 4
       
-      if( room && getObject(room.users, { id: message.userHash }) ){
+      if( room && doesArrayHashContain(room.users, message.userHash) && socket['mailSent'] < maxNumberOfMails ){
+        
+        socket['mailSent']++;
+        
         invitationMailer.sendMail({ 
           from: message.mail.from, 
           to: message.mail.to, 
@@ -153,8 +158,14 @@ exports.passMailInvitationOnToClient = function(message){
           text: message.mail.text, 
           html: message.mail.html 
         });
+        
         logger.log('info', timestamp + ' send '+message.subject);
+        
       }
+      else{
+        logger.log('info', timestamp + ' mail not sent: maxMailNumber exhausted');
+      }
+      
     }
   );
 
