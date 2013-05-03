@@ -83,7 +83,7 @@ exports.setupClient = function(socket,clientUrl){ // user gets handled by whethe
         clientIps.push(socket._socket.remoteAddress); // remember ip-address so that user can not update side repeatedly
         
         if(isSocketConnectionAvailable(socket)){
-          console.log('clientInfo.country: ',clientInfo.country);
+          
           socket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
             subject: 'init',
             roomHash: clientInfo.roomHash, 
@@ -91,6 +91,7 @@ exports.setupClient = function(socket,clientUrl){ // user gets handled by whethe
             guestIds: clientInfo.guestIds,
             country: clientInfo.country
           }));
+          
         }
         
         logger.log('info', timestamp + ' send init');
