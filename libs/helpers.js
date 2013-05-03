@@ -10,6 +10,9 @@ var properties = require('./../properties');
 // thread-pool that manage mongo-db queries
 var helperThreads = require("backgrounder").spawn(__dirname + "/helper_thread.js"); // , { "children-count" : 5 }
 
+// find out location of clients through their ip-address
+var geocoder = require('geotools');
+
 // logging all send activities
 var logger = require('./logger');
 
@@ -62,6 +65,7 @@ exports.delayedIpJob = function(ip,time){
 exports.setupClient = function(socket,clientUrl){ // user gets handled by whether they are hosts or guests 
  
   handleClient(
+    socket,
     clientUrl, 
     function(clientInfo){
       
@@ -79,17 +83,19 @@ exports.setupClient = function(socket,clientUrl){ // user gets handled by whethe
         clientIps.push(socket._socket.remoteAddress); // remember ip-address so that user can not update side repeatedly
         
         if(isSocketConnectionAvailable(socket)){
+          console.log('clientInfo.country: ',clientInfo.country);
           socket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
             subject: 'init',
             roomHash: clientInfo.roomHash, 
             userHash: clientInfo.userHash, 
-            guestIds: clientInfo.guestIds 
+            guestIds: clientInfo.guestIds,
+            country: clientInfo.country
           }));
         }
         
         logger.log('info', timestamp + ' send init');
         
-        exports.informOtherClientsOfChatroom(clientInfo.roomHash, clientInfo.userHash, 'participant:join');
+        exports.informOtherClientsOfChatroom(clientInfo.roomHash, clientInfo.userHash, 'participant:join', clientInfo.country);
 
       }
       else{ // there was an error 
@@ -224,7 +230,7 @@ exports.passKickMessagesOnToClient = function(message,hostIp){
 };
 
 // inform other clients that a new user has entered or left chatroom
-exports.informOtherClientsOfChatroom = function(roomHash, userHash, subject){ 
+exports.informOtherClientsOfChatroom = function(roomHash, userHash, subject, country){ 
   helperThreads.send(
     { type: 'get-users', roomHash: roomHash }, 
     function(users){
@@ -237,11 +243,16 @@ exports.informOtherClientsOfChatroom = function(roomHash, userHash, subject){
         
         if( userId != userHash && isSocketConnectionAvailable( exports.clients[userId] ) ){ // socket must be open to receive message
           
-          exports.clients[userId].send(JSON.stringify({
-            subject : subject,
-            roomHash : roomHash,
-            userHash : userHash
-          }));
+          var msg = {};
+          msg.subject = subject;
+          msg.roomHash = roomHash;
+          msg.userHash = userHash;
+          
+          if(country){
+            msg.country = country;
+          }
+          
+          exports.clients[userId].send(JSON.stringify(msg));
           
         }
       }
@@ -289,13 +300,16 @@ var isSocketConnectionAvailable = function(socket){
   return socket && socket.readyState == 1;
 };
 
-var handleClient = function(clientURL, callback){
+var handleClient = function(socket, clientURL, callback){
   
+  var clientIp = socket._socket.remoteAddress;
+  var country = geocoder.lookup(clientIp).country ? geocoder.lookup(clientIp).country : 'unknown';
+          
   if( identifyAsHostUrl(clientURL) ){ // is host
-    handleHost(clientURL, callback);
+    handleHost(clientURL, country, callback);
   }
   else if( getHashFromClientURL(clientURL, '/room/').length === 40 ){ // is guest
-    handleGuest(clientURL, callback);
+    handleGuest(clientURL, country, callback);
   }
   else{ // is neither host nor guest so inform client about that
     handleOutsider(callback);
@@ -303,7 +317,7 @@ var handleClient = function(clientURL, callback){
   
 };
 
-var handleHost = function(clientURL, callback){
+var handleHost = function(clientURL, country, callback){
   
   var infoForClient = {};
   
@@ -313,10 +327,11 @@ var handleHost = function(clientURL, callback){
     
     infoForClient.userHash = getUniqueUserHash([]);
     infoForClient.guestIds = [];
+    infoForClient.country = country;
     
     helperThreads.send({ type: 'insert-room', roomHash: infoForClient.roomHash },function(){
       
-      helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash },function(){
+      helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash, country: country },function(){
         
         infoForClient.success = true;
         callback(infoForClient);
@@ -329,7 +344,7 @@ var handleHost = function(clientURL, callback){
   
 };
 
-var handleGuest = function(clientURL, callback){
+var handleGuest = function(clientURL, country, callback){
   
   var infoForClient = {};
   
@@ -363,8 +378,9 @@ var handleGuest = function(clientURL, callback){
     
       infoForClient.userHash = getUniqueUserHash(room);
       infoForClient.guestIds = room.users;
+      infoForClient.country = country;
       
-      helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash },function(){
+      helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash, country: country },function(){
         infoForClient.success = true;
         callback(infoForClient);
       });

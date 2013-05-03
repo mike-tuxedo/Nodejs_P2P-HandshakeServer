@@ -136,7 +136,7 @@ wss.on('connection', function(ws) {
         logger.log('info', timestamp + ' client disconnected');
         
         if(this['accepted']){ // client must be accepted host or guest
-          
+        
           // delete socket-object out of JSON-object
           var socketToDelete = this['userHash'];
           delete helpers.clients[socketToDelete]; 

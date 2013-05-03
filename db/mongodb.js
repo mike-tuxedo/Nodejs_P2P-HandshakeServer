@@ -128,7 +128,7 @@ exports.deleteRoom  = function(roomHash,callback){
     
 };
 
-exports.insertUser = function(roomHash, userId, callback) {
+exports.insertUser = function(roomHash, userId, country, callback) {
 
   if (!roomHash || !userId) {
     return false;
@@ -151,7 +151,7 @@ exports.insertUser = function(roomHash, userId, callback) {
         var _users = rooms[0].users;
         
         _users.push(
-          { id: userId }
+          { id: userId, country: country }
         );
 
         db.collection('rooms').update(
