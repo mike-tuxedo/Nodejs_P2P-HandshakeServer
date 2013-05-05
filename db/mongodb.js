@@ -66,7 +66,7 @@ exports.insertRoom = function(roomHash, oldUsers, callback) {
         room,
         function(err, result) {
           if (err) {
-            console.log(err);
+            throw new Error('mongodb insertRoom: error happend while inserting room into db: ' + err);
             return;
           }
         }
@@ -78,7 +78,7 @@ exports.insertRoom = function(roomHash, oldUsers, callback) {
         { w: 1 }, 
         function(err, result) {
           if (err) {
-            console.log(err);
+            throw new Error('mongodb insertRoom: error happend while inserting room into db: ' + err);
             return;
           }
         }
@@ -113,7 +113,7 @@ exports.deleteRoom  = function(roomHash,callback){
       { w: 1 }, 
       function(err, result) {
         if (err) {
-          console.log(err);
+          throw new Error('mongodb deleteRoom: error happend while deleting room from db: ' + err);
           return;
         }
       }
