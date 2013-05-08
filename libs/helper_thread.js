@@ -13,7 +13,7 @@ process.on('message', function(msg, callback) {
       break;
       
     case 'insert-user':
-      mongodb.insertUser(msg.roomHash, msg.userHash, msg.country, callback);
+      mongodb.insertUser(msg.roomHash, msg.userHash, msg.name, msg.country, callback);
       break;
     
     case 'get-users':

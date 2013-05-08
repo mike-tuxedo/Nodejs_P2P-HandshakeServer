@@ -33,19 +33,17 @@ wss.on('connection', function(ws) {
     
     
     /* message-kinds (from client to server): */
-    //// register (new User or Guest) -> { subject: 'init', url: 'www.example.at/#...' }
+    //// register (new User or Guest) -> { subject: 'init', url: 'www.example.at/#...', name: '...' }
     //// spd/ice -> { subject: 'sdp/ice', roomHash: '...', userHash: '...', destinationHash: '...', spd or ice: Object }
     //// take guest out -> { subject: 'participant:remove', roomHash: '...', userHash: '...', destinationHash: '...' }
-    // screen-sharing { subject: 'participant:photo', roomHash: '...', userHash: '...', destinationHash: '...', photoData: '...' }
     
     /* message-kinds (from server to client): */
-    //// register (new User or Guest) error-property is optional -> { subject: 'init', roomHash: '...', userHash: '...', guestIds: [{id '...'},...], error: '...' }
+    //// register (new User or Guest) error-property is optional -> { subject: 'init', roomHash: '...', userHash: '...', guestIds: [{ id '...', country: '...', name: '...' },...], error: '...' }
     //// spd/ice -> { subject: 'sdp/ice', roomHash: '...', userHash: '...', spd or ice: Object }
     //// take guest out -> { subject: 'close', roomHash: '...', userHash: '...' }
-    //// screen-sharing { subject: 'participant:photo', roomHash: '...', userHash: '...', photoData: '...' }
     
     /* information-kinds: */
-    // new user: { subject: 'participant:join', roomHash: '...', userHash: '...' }
+    // new user: { subject: 'participant:join', roomHash: '...', userHash: '...', name: '...' }
     // use leaves: { subject: 'participant:leave', roomHash: '...', userHash: '...' }
     // video changed mute and unmute { subject: 'participant:video:mute/unmute', roomHash: '...', userHash: '...' }
     // audio changed mute and unmute { subject: 'participant:audio:mute/unmute', roomHash: '...', userHash: '...' }
@@ -72,8 +70,9 @@ wss.on('connection', function(ws) {
       
         switch(message.subject){
           case 'init': 
-          
-            helpers.setupClient(this, message.url); // this is socket that sent an init-message
+            
+            message.name = message.name ? message.name : 'unknown';
+            helpers.setupClient(this, message.url, message.name); // this is socket that sent an init-message
             break;
             
           case 'sdp':
