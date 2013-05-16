@@ -89,7 +89,7 @@ exports.setupClient = function(socket,clientUrl,clientName){ // user gets handle
             subject: 'init',
             roomHash: clientInfo.roomHash, 
             userHash: clientInfo.userHash, 
-            guestIds: clientInfo.guestIds,
+            users: clientInfo.users,
             country: clientInfo.country
           }));
           
@@ -331,7 +331,7 @@ var handleHost = function(clientURL, clientName, country, callback){
     infoForClient.roomHash = roomHash;
     
     infoForClient.userHash = getUniqueUserHash([]);
-    infoForClient.guestIds = [];
+    infoForClient.users = [];
     infoForClient.country = country;
     
     helperThreads.send({ type: 'insert-room', roomHash: infoForClient.roomHash },function(){
@@ -382,7 +382,7 @@ var handleGuest = function(clientURL, clientName, country, callback){
       infoForClient.roomHash = room.hash;
     
       infoForClient.userHash = getUniqueUserHash(room);
-      infoForClient.guestIds = room.users;
+      infoForClient.users = room.users;
       infoForClient.country = country;
       
       helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash, name: clientName, country: country },function(){

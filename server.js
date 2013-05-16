@@ -38,7 +38,7 @@ wss.on('connection', function(ws) {
     //// take guest out -> { subject: 'participant:remove', roomHash: '...', userHash: '...', destinationHash: '...' }
     
     /* message-kinds (from server to client): */
-    //// register (new User or Guest) error-property is optional -> { subject: 'init', roomHash: '...', userHash: '...', guestIds: [{ id '...', country: '...', name: '...' },...], error: '...' }
+    //// register (new User or Guest) error-property is optional -> { subject: 'init', roomHash: '...', userHash: '...', users: [{ id '...', country: '...', name: '...' },...], error: '...' }
     //// spd/ice -> { subject: 'sdp/ice', roomHash: '...', userHash: '...', spd or ice: Object }
     //// take guest out -> { subject: 'close', roomHash: '...', userHash: '...' }
     
