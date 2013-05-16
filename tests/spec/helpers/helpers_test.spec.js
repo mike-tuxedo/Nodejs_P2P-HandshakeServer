@@ -20,9 +20,9 @@ describe('a guest is invited and comes in a chatroom', function() {
       
       secondUserHash =  infoForClient.userHash;
       
-      var guestIds = infoForClient.guestIds;
+      var users = infoForClient.users;
       
-      expect(properties.hostUserHash).toEqual(guestIds[0].id);
+      expect(properties.hostUserHash).toEqual(users[0].id);
       
       done();
       
@@ -38,10 +38,10 @@ describe('a guest is invited and comes in a chatroom', function() {
       properties.thirdUserName,
       function(infoForClient){
       
-      var guestIds = infoForClient.guestIds;
+      var users = infoForClient.users;
       
-      expect(properties.hostUserHash).toEqual(guestIds[0].id);
-      expect(secondUserHash).toEqual(guestIds[1].id);
+      expect(properties.hostUserHash).toEqual(users[0].id);
+      expect(secondUserHash).toEqual(users[1].id);
       
       done();
       
@@ -57,7 +57,7 @@ describe('a guest is invited and comes in a chatroom', function() {
       properties.fourthUserName,
       function(infoForClient){
     
-      var guest_ids = infoForClient.guestIds;
+      var guest_ids = infoForClient.users;
       
       expect(properties.hostUserHash).toEqual(guest_ids[0].id);
       expect(3).toEqual(guest_ids.length);
