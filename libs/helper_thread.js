@@ -16,6 +16,10 @@ process.on('message', function(msg, callback) {
       mongodb.insertUser(msg.roomHash, msg.userHash, msg.name, msg.country, callback);
       break;
     
+    case 'edit-user':
+      mongodb.editUser(msg.roomHash, msg.userHash, msg.name, msg.country, callback);
+      break;
+      
     case 'get-users':
       mongodb.getOtherUsersOfChatroom(msg.roomHash,callback);
       break;

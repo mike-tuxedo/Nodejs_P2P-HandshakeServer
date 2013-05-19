@@ -177,6 +177,59 @@ exports.insertUser = function(roomHash, userId, name, country, callback) {
     
 };
 
+exports.editUser = function(roomHash, userId, name, country, callback) {
+
+  if (!roomHash || !userId) {
+    return false;
+  }
+
+  mongodb.connect(properties.mongodbUrl + "rooms", function(err, db) {
+    
+    if (err) {
+      throw new Error('mongodb editUser: error happend while editing user into db: ' + err);
+      return;
+    }
+    
+    exports.searchForChatroomEntry(
+      { hash: roomHash},
+      function(rooms){
+        
+        if(!rooms || !rooms.length)
+          return;
+        
+        var _users = rooms[0].users;
+        var editUser = { id: userId, name: name, country: country };
+        
+        for(var u=0; u < _users.length; u++){
+          if( _users[u].id === userId ){
+            _users.splice(u,1,editUser);
+            break;
+          }
+        }
+
+        db.collection('rooms').update(
+          { hash: roomHash  }, 
+          { hash: roomHash, users: _users }, 
+          { w: 1 }, 
+          function(err, result) {
+            if(err){
+              throw new Error('mongodb editUser: error happend while editing user into db: ' + err);
+              return;
+            }
+          }
+        );
+        
+        db.close();
+        
+        if(callback)
+          callback();
+      }
+    );
+    
+  });
+  
+};
+
 exports.getOtherUsersOfChatroom = function(roomHash, callback){
   exports.searchForChatroomEntry({ hash: roomHash },function(rooms){
     if(rooms && rooms.length && rooms[0].users)

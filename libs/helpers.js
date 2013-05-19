@@ -178,7 +178,7 @@ exports.passMailInvitationOnToClient = function(message,socket){
 
 };
 
-exports.passPhotoOnToClient = function(message){
+exports.editClient = function(message){
 
   helperThreads.send(
     { type: 'search-chatroom', hash: message.roomHash },
@@ -186,18 +186,16 @@ exports.passPhotoOnToClient = function(message){
     
       var room = rooms[0];
       var timestamp = exports.formatTime(new Date().getTime());
-      var socket = exports.clients[message.destinationHash];
       
-      if( isSocketConnectionAvailable(socket) && doesArrayHashContain(room.users, message.userHash) ){
+      if( doesArrayHashContain(room.users, message.userHash) ){
         
-        socket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
-          subject: 'participant:photo',
-          roomHash: message.roomHash, 
-          userHash: message.userHash,
-          photoData: message.photoData
-        }));
+        helperThreads.send({ type: 'edit-user', roomHash: message.roomHash, userHash: message.userHash, name: message.put.name, country: message.put.country },function(){
+          
+          exports.informOtherClientsOfChatroom(message.roomHash, message.userHash, message.subject, message.put.name, message.put.country);
+          logger.log('info', timestamp + ' send '+message.subject);
+          
+        });
         
-        logger.log('info', timestamp + ' send participant:photo');
       }
       
   });

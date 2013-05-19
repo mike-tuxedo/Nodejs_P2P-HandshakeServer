@@ -36,20 +36,22 @@ wss.on('connection', function(ws) {
     //// register (new User or Guest) -> { subject: 'init', url: 'www.example.at/#...', name: '...' }
     //// spd/ice -> { subject: 'sdp/ice', roomHash: '...', userHash: '...', destinationHash: '...', spd or ice: Object }
     //// take guest out -> { subject: 'participant:remove', roomHash: '...', userHash: '...', destinationHash: '...' }
+    //// edit client -> { subject: 'participant:edit', roomHash: '...', userHash: '...', put: { name: '...', country: '...' } }
     
     /* message-kinds (from server to client): */
-    //// register (new User or Guest) error-property is optional -> { subject: 'init', roomHash: '...', userHash: '...', users: [{ id '...', country: '...', name: '...' },...], error: '...' }
+    //// register -> (new User or Guest) error-property is optional -> { subject: 'init', roomHash: '...', userHash: '...', users: [{ id '...', country: '...', name: '...' },...], error: '...' }
     //// spd/ice -> { subject: 'sdp/ice', roomHash: '...', userHash: '...', spd or ice: Object }
     //// take guest out -> { subject: 'close', roomHash: '...', userHash: '...' }
     
-    /* information-kinds: */
-    // new user: { subject: 'participant:join', roomHash: '...', userHash: '...', name: '...' }
-    // use leaves: { subject: 'participant:leave', roomHash: '...', userHash: '...' }
-    // video changed mute and unmute { subject: 'participant:video:mute/unmute', roomHash: '...', userHash: '...' }
-    // audio changed mute and unmute { subject: 'participant:audio:mute/unmute', roomHash: '...', userHash: '...' }
+    /* information-kinds (server to client): */
+    //// new user -> { subject: 'participant:join', roomHash: '...', userHash: '...', name: '...', country: '...' }
+    //// edit user -> { subject: 'participant:edit', roomHash: '...', userHash: '...', name: '...', country: '...' }
+    //// user leaves -> { subject: 'participant:leave', roomHash: '...', userHash: '...' }
+    //// video changed mute and unmute -> { subject: 'participant:video:mute/unmute', roomHash: '...', userHash: '...' }
+    //// audio changed mute and unmute -> { subject: 'participant:audio:mute/unmute', roomHash: '...', userHash: '...' }
     
-    /* e-mail invitations */
-    //// { subject: 'mail', roomHash: '...', userHash: '...', mail: { from: '...', to: '...', subject: '...', text: 'Hello World', html: '<b>Hello World</b>' } }
+    /* e-mail invitations (client to server): */
+    //// send mail -> { subject: 'mail', roomHash: '...', userHash: '...', mail: { from: '...', to: '...', subject: '...', text: 'Hello World', html: '<b>Hello World</b>' } }
     
     
 
@@ -90,9 +92,9 @@ wss.on('connection', function(ws) {
             helpers.passMailInvitationOnToClient(message,this);
             break;
           
-          case 'participant:photo': 
+          case 'participant:edit': 
           
-            helpers.passPhotoOnToClient(message);
+            helpers.editClient(message);
             break;
             
           case 'participant:remove':
