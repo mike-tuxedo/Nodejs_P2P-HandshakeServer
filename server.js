@@ -18,25 +18,20 @@ wss.on('connection', function(ws) {
     
     /* client must be connection on right-domain */
     /* furthermore client must not update side over and over again */
-    if( helpers.isValidOrigin(ws) && !helpers.doesClientIpExist(ws._socket.remoteAddress) ){
+    if( helpers.isValidOrigin(ws) ){
       logger.log('info', timestamp + ' client accepted');
     }
     else{
-      if( !helpers.isValidOrigin(ws) ){
-        logger.error('info', timestamp + ' client not accepted: invalid domain ' + ws.upgradeReq.headers.origin);
-      }
-      else{
-        logger.error('info', timestamp + ' client not accepted: ip already exists ' + ws._socket.remoteAddress);
-      }
+      logger.error('info', timestamp + ' client not accepted: invalid domain ' + ws.upgradeReq.headers.origin);
       return;
     }
     
     
     /* message-kinds (from client to server): */
-    //// register (new User or Guest) -> { subject: 'init', url: 'www.example.at/#...', name: '...' }
+    //// register (new User or Guest) -> { subject: 'init', url: 'www.example.at/#...' }
     //// spd/ice -> { subject: 'sdp/ice', roomHash: '...', userHash: '...', destinationHash: '...', spd or ice: Object }
     //// take guest out -> { subject: 'participant:remove', roomHash: '...', userHash: '...', destinationHash: '...' }
-    //// edit client -> { subject: 'participant:edit', roomHash: '...', userHash: '...', put: { name: '...', country: '...' } }
+    //// edit client -> { subject: 'participant:edit', roomHash: '...', userHash: '...', put: { name: '...' } }
     
     /* message-kinds (from server to client): */
     //// register -> (new User or Guest) error-property is optional -> { subject: 'init', roomHash: '...', userHash: '...', users: [{ id '...', country: '...', name: '...' },...], error: '...' }
@@ -44,9 +39,9 @@ wss.on('connection', function(ws) {
     //// take guest out -> { subject: 'close', roomHash: '...', userHash: '...' }
     
     /* information-kinds (server to client): */
-    //// new user -> { subject: 'participant:join', roomHash: '...', userHash: '...', name: '...', country: '...' }
-    //// edit user -> { subject: 'participant:edit', roomHash: '...', userHash: '...', name: '...', country: '...' }
-    //// user leaves -> { subject: 'participant:leave', roomHash: '...', userHash: '...' }
+    //// new client -> { subject: 'participant:join', roomHash: '...', userHash: '...', name: '...', country: '...' }
+    //// edit client -> { subject: 'participant:edit', roomHash: '...', userHash: '...', name: '...', country: '...' }
+    //// client leaves -> { subject: 'participant:leave', roomHash: '...', userHash: '...' }
     //// video changed mute and unmute -> { subject: 'participant:video:mute/unmute', roomHash: '...', userHash: '...' }
     //// audio changed mute and unmute -> { subject: 'participant:audio:mute/unmute', roomHash: '...', userHash: '...' }
     
@@ -71,10 +66,15 @@ wss.on('connection', function(ws) {
       try{
       
         switch(message.subject){
-          case 'init': 
+          case 'init:room': 
             
-            message.name = message.name ? message.name : 'unknown';
-            helpers.setupClient(this, message.url, message.name); // this is socket that sent an init-message
+            helpers.handleNewClient(this, message.url); // this is a socket that sent an the message
+            break;
+          
+          case 'init:user': 
+            
+            message.subject = 'participant:join';
+            helpers.editClient(message);
             break;
             
           case 'sdp':
@@ -100,12 +100,14 @@ wss.on('connection', function(ws) {
           case 'participant:remove':
             
             helpers.passKickMessagesOnToClient(message,this['clientIpAddress']);
-            helpers.informOtherClientsOfChatroom(message.roomHash, message.destinationHash, 'participant:leave');
+            message.subject = 'participant:leave';
+            helpers.informOtherClientsOfChatroom(message);
             break;
           
           case 'participant:leave':
-          
-            helpers.informOtherClientsOfChatroom(message.roomHash, message.userHash, 'participant:leave');
+            
+            message.forceSent = true;
+            helpers.informOtherClientsOfChatroom(message);
             break;
           
           case 'participant:video:mute':
@@ -113,7 +115,7 @@ wss.on('connection', function(ws) {
           case 'participant:audio:mute':
           case 'participant:audio:unmute':
             
-            helpers.informOtherClientsOfChatroom(message.roomHash, message.userHash, message.subject);
+            helpers.informOtherClientsOfChatroom(message);
             break;
             
           default:
@@ -142,13 +144,12 @@ wss.on('connection', function(ws) {
           var socketToDelete = this['userHash'];
           delete helpers.clients[socketToDelete]; 
           
-          // delete client form db and their ip-address
+          // delete client form db
           helpers.deleteUserFromDatabase(this['roomHash'], this['userHash']);
-            
-          // inform other chatroom-users as well
-          helpers.informOtherClientsOfChatroom(this['roomHash'], this['userHash'], 'participant:leave');
           
-          helpers.delayedIpJob(this['clientIpAddress'],3000);
+          // inform other clients that a client left the room
+          var msg = { roomHash: this['roomHash'], userHash: this['userHash'], subject: 'participant:leave' };
+          helpers.informOtherClientsOfChatroom(msg);
           
         }
       }
@@ -161,5 +162,5 @@ wss.on('connection', function(ws) {
 
 wss.on('error', function(error) {
   var timestamp = helpers.formatTime(new Date().getTime());
-  logger.error('error', timestamp + ' server ' + error);
+  logger.error('error', timestamp + ' server-error: ' + error);
 });

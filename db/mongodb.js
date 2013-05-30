@@ -149,11 +149,19 @@ exports.insertUser = function(roomHash, userId, name, country, callback) {
           return;
         
         var _users = rooms[0].users;
+        var newUser = {};
+        newUser.id = userId;
         
-        _users.push(
-          { id: userId, name: name, country: country }
-        );
-
+        if(name){ 
+          newUser.name = name;
+        }
+        
+        if(country){ 
+          newUser.country = country;
+        }
+        
+        _users.push(newUser);
+        
         db.collection('rooms').update(
           { hash: roomHash  }, 
           { hash: roomHash, users: _users }, 
@@ -198,11 +206,18 @@ exports.editUser = function(roomHash, userId, name, country, callback) {
           return;
         
         var _users = rooms[0].users;
-        var editUser = { id: userId, name: name, country: country };
         
         for(var u=0; u < _users.length; u++){
           if( _users[u].id === userId ){
+            
+            var editUser = {};
+            editUser.id = userId;
+            
+            name ? editUser.name = name : editUser.name = _users[u].name;
+            editUser.country = _users[u].country;
+            
             _users.splice(u,1,editUser);
+            
             break;
           }
         }

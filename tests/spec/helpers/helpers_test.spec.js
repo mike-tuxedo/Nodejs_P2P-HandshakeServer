@@ -2,10 +2,10 @@
 var helpers = require('../../../libs/helpers').test;
 
 var hostUrl = 'http://locahost/#/room';
-var secondUserHash = null;
+
 var socket = {};
 socket._socket = {};
-socket._socket.remoteAddress = '178.194.43.211';
+socket._socket.remoteAddress = '178.194.43.211'; // all guest users share same ip-address
 
 
 describe('a guest is invited and comes in a chatroom', function() {
@@ -14,17 +14,23 @@ describe('a guest is invited and comes in a chatroom', function() {
     
     helpers.handleClient(
       socket, 
-      (hostUrl + '/' + properties.chatroomHash), 
-      properties.secondUserName,
+      (hostUrl + '/' + properties.chatroomHash),
       function(infoForClient){
-      
-      secondUserHash =  infoForClient.userHash;
       
       var users = infoForClient.users;
       
       expect(properties.hostUserHash).toEqual(users[0].id);
+      expect(properties.hostUserName).toEqual(users[0].name);
       
-      done();
+      /* second client sent an user:init, so update user-name */
+      insertUser(
+        properties.chatroomHash, 
+        properties.secondUserHash, 
+        properties.secondUserName
+        function(){
+          done();
+        }
+      );
       
     });
     
@@ -41,9 +47,18 @@ describe('a guest is invited and comes in a chatroom', function() {
       var users = infoForClient.users;
       
       expect(properties.hostUserHash).toEqual(users[0].id);
-      expect(secondUserHash).toEqual(users[1].id);
+      expect(properties.secondUserHash).toEqual(users[1].id);
+      expect(properties.secondUserName).toEqual(users[1].name);
       
-      done();
+      /* third client sent an user:init, so update user-name */
+      insertUser(
+        properties.chatroomHash, 
+        properties.thirdUserHash, 
+        properties.thirdUserName
+        function(){
+          done();
+        }
+      );
       
     });
     
@@ -57,12 +72,22 @@ describe('a guest is invited and comes in a chatroom', function() {
       properties.fourthUserName,
       function(infoForClient){
     
-      var guest_ids = infoForClient.users;
+      var users = infoForClient.users;
       
-      expect(properties.hostUserHash).toEqual(guest_ids[0].id);
-      expect(3).toEqual(guest_ids.length);
+      expect(properties.hostUserHash).toEqual(users[0].id);
+      expect(properties.thirdUserHash).toEqual(users[2].id);
+      expect(properties.thirdUserName).toEqual(users[2].name);
+      expect(3).toEqual(users.length);
       
-      done();
+      /* fourth client sent an user:init, so update user-name */
+      insertUser(
+        properties.chatroomHash, 
+        properties.fourthUserHash, 
+        properties.fourthUserName
+        function(){
+          done();
+        }
+      );
       
     });
     
@@ -70,3 +95,7 @@ describe('a guest is invited and comes in a chatroom', function() {
   
   
 });
+
+function insertUser(roomHash,userHash,name,country,func){
+  mongodb.insertUser(roomHash,userHash,name,country,func);
+}

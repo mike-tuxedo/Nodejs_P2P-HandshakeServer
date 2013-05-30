@@ -19,13 +19,10 @@ var logger = require('./logger');
 // to associate user-id's with user-connection-sockets
 exports.clients = {};
 
-// to make sure that a client can not update side repeatedly
-var clientIps = [];
-
 
 /* public methods */
 
-exports.isValidOrigin = function(req){ // client must have got a certain domain in order to proceed
+exports.isValidOrigin = function(req){ // client must have got a certain domain in order to be proceed
   
   if( !properties.productionMode ){ // activated in development-mode
     return true;
@@ -40,39 +37,16 @@ exports.isValidOrigin = function(req){ // client must have got a certain domain 
   }
 };
 
-exports.doesClientIpExist = function(ip){
-
-  if( !properties.productionMode ){ // activated in development-mode
-    return false;
-  }
+exports.handleNewClient = function(socket,clientUrl){ // user gets handled by whether they are hosts or guests 
   
-  if(clientIps.indexOf(ip) !== -1){
-    return true;
-  }
-  else{
-    return false;
-  }
-};
-
-exports.delayedIpJob = function(ip,time){
-  setTimeout(function(){
-    if(ip){
-      takeOutIp( ip );
-    }
-  },time);
-};
-
-exports.setupClient = function(socket,clientUrl,clientName){ // user gets handled by whether they are hosts or guests 
- 
-  handleClient(
+  handleClient( // find out whether it is a host, guest or another extraordinary user
     socket,
-    clientUrl, 
-    clientName,
+    clientUrl,
     function(clientInfo){
       
       var timestamp = exports.formatTime(new Date().getTime());
       
-      if( clientInfo.success ){ // true when user has created chatroom or enter already created chatroom
+      if( clientInfo.success ){ // true when user has created chatroom or entered already created chatroom
         
         socket['accepted'] = true;
         socket['roomHash'] = clientInfo.roomHash;
@@ -81,26 +55,11 @@ exports.setupClient = function(socket,clientUrl,clientName){ // user gets handle
         socket['mailSent'] = 0;
         
         exports.clients[clientInfo.userHash] = socket; // hold clients via hash value keys
-        clientIps.push(socket._socket.remoteAddress); // remember ip-address so that user can not update side repeatedly
+        exports.clients[clientInfo.userHash].readyForInfoMsg = false; // don't send participant:join when user is not ready, user is ready when they send init:user
         
-        if(isSocketConnectionAvailable(socket)){
-          
-          socket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
-            subject: 'init',
-            roomHash: clientInfo.roomHash, 
-            userHash: clientInfo.userHash, 
-            users: clientInfo.users,
-            country: clientInfo.country
-          }));
-          
-        }
-        
-        logger.log('info', timestamp + ' send init');
-        
-        exports.informOtherClientsOfChatroom(clientInfo.roomHash, clientInfo.userHash, 'participant:join', clientName, clientInfo.country);
-
+        registerNewClient(socket,clientInfo); // insert new user into db
       }
-      else{ // there was an error 
+      else{ // there was an error while processing an init:room-message
         socket.send(JSON.stringify({
           subject: 'init',
           error: clientInfo.error
@@ -116,7 +75,7 @@ exports.passDescriptionMessagesOnToClient = function(message){
 
   helperThreads.send(
     { type: 'search-chatroom', hash: message.roomHash },
-    function(rooms){ // check whether roomHash and User-ID's exist 
+    function(rooms){
       
       var room = rooms[0];
       var socket = exports.clients[message.destinationHash];
@@ -130,11 +89,13 @@ exports.passDescriptionMessagesOnToClient = function(message){
           userHash: message.userHash
         };
         
-        if(message.sdp)
+        if(message.sdp){
           msg['sdp'] = message.sdp;
-        else  
+        }
+        else {
           msg['ice'] = message.ice;
-          
+        }
+        
         socket.send(JSON.stringify(msg));
         
         logger.log('info', timestamp + (' send ' + (message.sdp ? 'sdp' : 'ice')) );
@@ -146,82 +107,113 @@ exports.passDescriptionMessagesOnToClient = function(message){
 
 exports.passMailInvitationOnToClient = function(message,socket){
   
-  helperThreads.send(
-    { type: 'search-chatroom', hash: message.roomHash },
-    function(rooms){ // check whether roomHash and User-ID exist 
-    
-      var room = rooms[0];
-      var timestamp = exports.formatTime(new Date().getTime());
-      var maxNumberOfMails = properties.maxUserNumber + 4; // client can only sent as much as there are users in a chatroom plus 4
+  if(message && message.roomHash){
+  
+    helperThreads.send(
+      { type: 'search-chatroom', hash: message.roomHash },
+      function(rooms){
       
-      if( room && doesArrayHashContain(room.users, message.userHash) && socket['mailSent'] < maxNumberOfMails ){
+        var room = rooms[0];
+        var timestamp = exports.formatTime(new Date().getTime());
+        var maxNumberOfMails = properties.maxUserNumber + 4; // client can only sent as much as max-user-number of a room is plus 4
         
-        socket['mailSent']++;
-        
-        invitationMailer.sendMail({ 
-          from: message.mail.from, 
-          to: message.mail.to, 
-          subject: message.mail.subject, 
-          text: message.mail.text, 
-          html: message.mail.html 
-        });
-        
-        logger.log('info', timestamp + ' send '+message.subject);
+        if( room && room.users && doesArrayHashContain(room.users, message.userHash) && socket['mailSent'] < maxNumberOfMails ){
+          
+          socket['mailSent']++;
+          
+          invitationMailer.sendMail({ 
+            from: message.mail.from, 
+            to: message.mail.to, 
+            subject: message.mail.subject, 
+            text: message.mail.text, 
+            html: message.mail.html 
+          });
+          
+          logger.log('info', timestamp + ' send '+message.subject);
+          
+        }
+        else{
+          logger.log('info', timestamp + ' mail not sent: maxMailNumber exhausted');
+        }
         
       }
-      else{
-        logger.log('info', timestamp + ' mail not sent: maxMailNumber exhausted');
-      }
-      
-    }
-  );
-
+    );
+  
+  }
 };
 
 exports.editClient = function(message){
-
-  helperThreads.send(
-    { type: 'search-chatroom', hash: message.roomHash },
-    function(rooms){ // check whether roomHash
-    
-      var room = rooms[0];
-      var timestamp = exports.formatTime(new Date().getTime());
-      
-      if( doesArrayHashContain(room.users, message.userHash) ){
-        
-        helperThreads.send({ type: 'edit-user', roomHash: message.roomHash, userHash: message.userHash, name: message.put.name, country: message.put.country },function(){
-          
-          exports.informOtherClientsOfChatroom(message.roomHash, message.userHash, message.subject, message.put.name, message.put.country);
-          logger.log('info', timestamp + ' send '+message.subject);
-          
-        });
-        
-      }
-      
-  });
   
+  if(message && message.roomHash){
+  
+    helperThreads.send(
+      { type: 'search-chatroom', hash: message.roomHash },
+      function(rooms){
+        
+        var room = rooms[0];
+        var timestamp = exports.formatTime(new Date().getTime());
+        
+        if( room && room.users && doesArrayHashContain(room.users, message.userHash) ){
+          
+          var editUser = null;
+          room.users.forEach(function(user){
+            if(user.id === message.userHash){
+              editUser = user;
+            }
+          });
+          
+          if(editUser){
+          
+            helperThreads.send({ type: 'edit-user', roomHash: message.roomHash, userHash: message.userHash, name: message.put.name },function(){
+              
+              exports.clients[message.userHash].readyForInfoMsg = true; // set ready true to receive participant:join-messages
+              message.name = message.put.name;
+              message.country = editUser.country;
+              
+              exports.informOtherClientsOfChatroom(message);
+              logger.log('info', timestamp + ' send '+message.subject);
+              
+            });
+            
+          }
+        }
+        
+    });
+    
+  }
 };
 
 exports.passKickMessagesOnToClient = function(message,hostIp){
   
   helperThreads.send(
     { type: 'search-chatroom', hash: message.roomHash },
-    function(rooms){ // check whether roomHash
+    function(rooms){
       
       var room = rooms[0];
-      var timestamp = exports.formatTime(new Date().getTime());
-      var hostSocket = exports.clients[room.users[0].id]; // first element is always host
-      var kickedSocket = exports.clients[message.destinationHash];
       
-      if( isSocketConnectionAvailable(kickedSocket) && doesArrayHashContain(room.users, message.userHash) && hostSocket['clientIpAddress'] === hostIp ){
+      if(room){
+      
+        var timestamp = exports.formatTime(new Date().getTime());
+        var hostSocket = exports.clients[room.users[0].id]; // first element is always host
+        var kickedSocket = exports.clients[message.destinationHash];
         
-        kickedSocket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
-          subject: 'close',
-          roomHash: message.roomHash, 
-          userHash: message.userHash
-        }));
+        // a client can kick other clients when:
+        // 1.) client sent their hash that matches hash of first user in db
+        // 2.) ip-address of a client-socket must match ip-address of a host-socket
+        if( isSocketConnectionAvailable(kickedSocket) && 
+            doesArrayHashContain(room.users, message.userHash) && 
+            room.users[0].id === message.userHash && 
+            hostSocket['clientIpAddress'] === hostIp ){
           
-        logger.log('info', timestamp + ' send close');
+              kickedSocket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
+                subject: 'close',
+                roomHash: message.roomHash, 
+                userHash: message.userHash
+              }));
+              
+              logger.log('info', timestamp + ' send close');
+        }
+        
       }
     }
   );
@@ -229,42 +221,43 @@ exports.passKickMessagesOnToClient = function(message,hostIp){
 };
 
 // inform other clients that a new user has entered or left chatroom
-exports.informOtherClientsOfChatroom = function(roomHash, userHash, subject, clientName, country){ 
-  helperThreads.send(
-    { type: 'get-users', roomHash: roomHash }, 
-    function(users){
-      
-      var timestamp = exports.formatTime(new Date().getTime());
-      
-      for(var u=0; u < users.length; u++){
+exports.informOtherClientsOfChatroom = function(message){ 
+  if(message && message.roomHash){
+  
+    helperThreads.send(
+      { type: 'get-users', roomHash: message.roomHash }, 
+      function(users){
         
-        var userId = users[u].id;
+        if(users){
         
-        if( userId != userHash && isSocketConnectionAvailable( exports.clients[userId] ) ){ // socket must be open to receive message
+          var timestamp = exports.formatTime(new Date().getTime());
           
-          var msg = {};
-          msg.subject = subject;
-          msg.roomHash = roomHash;
-          msg.userHash = userHash;
-          
-          if(clientName){
-            msg.name = clientName;
+          for(var u=0; u < users.length; u++){
+            
+            var userId = users[u].id;
+            
+            // send information for all users that are in a room but not:
+            // 1.) to the user that sent the message and 
+            // 2.) users that have not sent their init:user messages yet
+            // necessary for avoiding redundant data on client side
+            if( userId !== message.userHash && 
+                isSocketConnectionAvailable( exports.clients[userId] ) && 
+                (exports.clients[userId].readyForInfoMsg || message.forceSent) ){
+              
+                  exports.clients[userId].send(JSON.stringify(message));
+              
+            }
           }
           
-          if(country){
-            msg.country = country;
+          if(users.length > 1){
+            logger.log('info', timestamp + (' send participant ' + subject) );
           }
-          
-          exports.clients[userId].send(JSON.stringify(msg));
           
         }
       }
-      
-      if(users.length > 1){
-        logger.log('info', timestamp + (' send participant ' + subject) );
-      }
-    }
-  );
+    );
+    
+  }
 };
 
 exports.deleteUserFromDatabase = function(roomHash, userHash){
@@ -299,20 +292,48 @@ exports.formatTime = function(timestamp) {
 
 /* private methods */
 
+var registerNewClient = function(socket,info){
+  
+  helperThreads.send({ type: 'insert-user', roomHash: info.roomHash, userHash: info.userHash, country: info.country },function(){
+    
+    var timestamp = exports.formatTime(new Date().getTime());
+    logger.log('info', timestamp + ' new user inserted');
+    
+    if(isSocketConnectionAvailable(socket)){
+    
+      socket.send(JSON.stringify({ // server informs user about chatroom-hash and userID's
+        subject: 'init',
+        roomHash: info.roomHash,
+        userHash: info.userHash,
+        users: info.users,
+        country: info.country
+      }));
+      
+      timestamp = exports.formatTime(new Date().getTime());
+      logger.log('info', timestamp + ' send init');
+      
+    }
+    
+  });
+  
+};
+
+// checks whether socket exists and is connected to the server
 var isSocketConnectionAvailable = function(socket){
   return socket && socket.readyState == 1;
 };
 
-var handleClient = function(socket, clientURL, clientName, callback){
+// handle nwe client that can be a host, guest or neither of them
+var handleClient = function(socket, clientURL, callback){
   
   var clientIp = socket._socket.remoteAddress;
   var country = geocoder.lookup(clientIp).country ? geocoder.lookup(clientIp).country : 'unknown';
-          
+  
   if( identifyAsHostUrl(clientURL) ){ // is host
-    handleHost(clientURL, clientName, country, callback);
+    handleHost(clientURL, country, callback);
   }
   else if( getHashFromClientURL(clientURL, '/room/').length === 40 ){ // is guest
-    handleGuest(clientURL, clientName, country, callback);
+    handleGuest(clientURL, country, callback);
   }
   else{ // is neither host nor guest so inform client about that
     handleOutsider(callback);
@@ -320,12 +341,13 @@ var handleClient = function(socket, clientURL, clientName, callback){
   
 };
 
-var handleHost = function(clientURL, clientName, country, callback){
+// when it is a host then created a room first and send them an init-message
+var handleHost = function(clientURL, country, callback){
   
   var infoForClient = {};
   
   getUniqueRoomHash(function(roomHash){
-      
+    
     infoForClient.roomHash = roomHash;
     
     infoForClient.userHash = getUniqueUserHash([]);
@@ -334,12 +356,8 @@ var handleHost = function(clientURL, clientName, country, callback){
     
     helperThreads.send({ type: 'insert-room', roomHash: infoForClient.roomHash },function(){
       
-      helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash, name: clientName, country: country },function(){
-        
-        infoForClient.success = true;
-        callback(infoForClient);
-      
-      });
+      infoForClient.success = true;
+      callback(infoForClient);
       
     });
     
@@ -347,15 +365,16 @@ var handleHost = function(clientURL, clientName, country, callback){
   
 };
 
-var handleGuest = function(clientURL, clientName, country, callback){
+// when it is a guest then check whether room does exist and is not fully occupied, if so send them an init-message
+var handleGuest = function(clientURL, country, callback){
   
   var infoForClient = {};
   
   helperThreads.send({ type: 'search-chatroom', hash: getHashFromClientURL(clientURL, '/room/') },function(rooms){
-      
+    
     var room = null;
     
-    if( typeof rooms === 'undefined' ){
+    if(!rooms){
       logger.log('warn', timestamp + ' room is not found');
       return;
     }
@@ -368,31 +387,29 @@ var handleGuest = function(clientURL, clientName, country, callback){
     if( room.users && room.users.length >= properties.maxUserNumber && properties.productionMode ){ 
       infoForClient.success = false;
       infoForClient.error = "room:full";
-      callback(infoForClient);
     }
     else if(room && room.length === 0){ // room is not in db anymore
       infoForClient.success = false;
       infoForClient.error = "room:unknown";
-      callback(infoForClient);
     }
     else{
       
       infoForClient.roomHash = room.hash;
-    
       infoForClient.userHash = getUniqueUserHash(room);
+      
       infoForClient.users = room.users;
       infoForClient.country = country;
+      infoForClient.success = true;
       
-      helperThreads.send({ type: 'insert-user', roomHash: infoForClient.roomHash, userHash: infoForClient.userHash, name: clientName, country: country },function(){
-        infoForClient.success = true;
-        callback(infoForClient);
-      });
     }
+    
+    callback(infoForClient);
     
   });
   
 };
 
+// handle clients that could not be identified as hosts or guest-users
 var handleOutsider = function(callback){
   var infoForClient = {};
   infoForClient.success = false;
@@ -404,23 +421,20 @@ var deleteChatroomFormDatabase = function(roomHash){
   helperThreads.send({ type: 'delete-room', roomHash: roomHash });
 };
 
-var takeOutIp = function(ip){
-  if( clientIps.indexOf(ip) !== -1 ){
-    clientIps.splice(clientIps.indexOf(ip),1);
-  }
-};
-
 var getUniqueRoomHash = function(callback){
+
   var hash = null;
   
   var tryToGetHash = function(){
   
     hash = createHash();
     helperThreads.send({ type: 'search-chatroom', hash: hash },function(rooms){
-      if(rooms && rooms.length == 0) // there is no chatroom with recently calculated hash
+      if(rooms && rooms.length === 0){ // there is no chatroom with recently calculated hash
         callback(hash);
-      else
+      }
+      else{
         tryToGetHash();
+      }
     });
     
   };
