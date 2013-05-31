@@ -148,7 +148,7 @@ wss.on('connection', function(ws) {
           helpers.deleteUserFromDatabase(this['roomHash'], this['userHash']);
           
           // inform other clients that a client left the room
-          var msg = { roomHash: this['roomHash'], userHash: this['userHash'], subject: 'participant:leave' };
+          var msg = { roomHash: this['roomHash'], userHash: this['userHash'], subject: 'participant:leave', forceSent: true };
           helpers.informOtherClientsOfChatroom(msg);
           
         }

@@ -235,7 +235,6 @@ exports.informOtherClientsOfChatroom = function(message){
           for(var u=0; u < users.length; u++){
             
             var userId = users[u].id;
-            
             // send information for all users that are in a room but not:
             // 1.) to the user that sent the message and 
             // 2.) users that have not sent their init:user messages yet
@@ -243,14 +242,14 @@ exports.informOtherClientsOfChatroom = function(message){
             if( userId !== message.userHash && 
                 isSocketConnectionAvailable( exports.clients[userId] ) && 
                 (exports.clients[userId].readyForInfoMsg || message.forceSent) ){
-              
+                
                   exports.clients[userId].send(JSON.stringify(message));
               
             }
           }
           
           if(users.length > 1){
-            logger.log('info', timestamp + (' send participant ' + subject) );
+            logger.log('info', timestamp + (' send participant ' + message.subject) );
           }
           
         }
@@ -305,7 +304,7 @@ var registerNewClient = function(socket,info){
         subject: 'init',
         roomHash: info.roomHash,
         userHash: info.userHash,
-        users: info.users,
+        users: getReadyUsers(info.users,info.userHash),
         country: info.country
       }));
       
@@ -419,6 +418,16 @@ var handleOutsider = function(callback){
 
 var deleteChatroomFormDatabase = function(roomHash){
   helperThreads.send({ type: 'delete-room', roomHash: roomHash });
+};
+
+var getReadyUsers = function(users,ownHash){
+  var readyUsers = [];
+  users.forEach(function(user){
+    if( ownHash !== user.id && exports.clients[user.id].readyForInfoMsg ){
+      readyUsers.push(user);
+    }
+  });
+  return readyUsers;
 };
 
 var getUniqueRoomHash = function(callback){
