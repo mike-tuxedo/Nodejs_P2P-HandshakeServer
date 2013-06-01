@@ -74,6 +74,7 @@ wss.on('connection', function(ws) {
           case 'init:user': 
             
             message.subject = 'participant:join';
+            message.forceSent = true;
             helpers.editClient(message);
             break;
             
@@ -100,8 +101,6 @@ wss.on('connection', function(ws) {
           case 'participant:remove':
             
             helpers.passKickMessagesOnToClient(message,this['clientIpAddress']);
-            message.subject = 'participant:leave';
-            helpers.informOtherClientsOfChatroom(message);
             break;
           
           case 'participant:leave':
