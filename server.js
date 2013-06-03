@@ -16,8 +16,7 @@ wss.on('connection', function(ws) {
     
     var timestamp = helpers.formatTime(new Date().getTime());
     
-    /* client must be connection on right-domain */
-    /* furthermore client must not update side over and over again */
+    /* client must be connected on right-domain */
     if( helpers.isValidOrigin(ws) ){
       logger.log('info', timestamp + ' client accepted');
     }

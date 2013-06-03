@@ -423,7 +423,7 @@ var deleteChatroomFormDatabase = function(roomHash){
 var getReadyUsers = function(users,ownHash){
   var readyUsers = [];
   users.forEach(function(user){
-    if( ownHash !== user.id && exports.clients[user.id].readyForInfoMsg ){
+    if( ownHash !== user.id && exports.clients[user.id] && exports.clients[user.id].readyForInfoMsg ){
       readyUsers.push(user);
     }
   });
@@ -505,5 +505,9 @@ var getObject = function(originalObject, searchObject){
 
 // test methods 
 exports.test = {};
+exports.test.getUniqueUserHash = getUniqueUserHash;
+exports.test.getUniqueRoomHash = getUniqueRoomHash;
+exports.test.createHash = createHash;
 exports.test.getHashFromClientURL = getHashFromClientURL;
 exports.test.handleClient = handleClient;
+exports.test.helperThreads = helperThreads;

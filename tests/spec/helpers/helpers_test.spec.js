@@ -85,3 +85,53 @@ function insertNextUser(done){
   });
 
 }
+
+
+describe('server helper-methods check-up', function() {
+  
+  it('should create a 40 sign-hash', function() {
+    
+    var hash = helpers.createHash();
+    expect(typeof '').toEqual(typeof hash);
+    expect(40).toEqual(hash.length);
+    
+  });
+  
+  it('should return a 40 sign-hash', function() {
+    
+    var hash = helpers.getHashFromClientURL(properties.clientURL, '/room/');
+    expect(typeof '').toEqual(typeof hash);
+    expect(40).toEqual(hash.length);
+    
+  });
+  
+  it('should return an unique room-hash', function(done) {
+    
+    helpers.getUniqueRoomHash(function(hash){
+    
+      expect(properties.chatroomHash).not.toEqual(hash);
+      done();
+      
+    });
+    
+  });
+  
+  it('should return an unique user-hash', function(done) {
+    
+    helpers.helperThreads.send({ type: 'search-chatroom', hash: properties.chatroomHash }, function(rooms){
+      
+      var room = rooms[0];
+      var userHash = helpers.getUniqueUserHash(room);
+      
+      for(var u=0;u < room.users.length; u++){
+        var user = room.users[u];
+        expect(userHash).not.toEqual(user.id);
+      }
+      
+      done();
+      
+    });
+    
+  });
+  
+});
